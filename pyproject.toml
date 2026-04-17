@@ -1,7 +1,7 @@
 [project]
 name = "tableau-metadata-agent"
 version = "0.1.0"
-description = "Add your description here"
+description = "An LLM-driven CLI tool for working with Tableau workbooks, with a focus on generating standardized documentation."
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
