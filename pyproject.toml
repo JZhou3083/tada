@@ -7,6 +7,7 @@ requires-python = ">=3.13"
 dependencies = [
     "langgraph>=1.1.8",
     "prompt-toolkit>=3.0.52",
+    "pydantic>=2.13.3",
     "questionary>=2.1.1",
     "rich>=15.0.0",
     "typer>=0.24.1",

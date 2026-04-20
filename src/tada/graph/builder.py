@@ -2,9 +2,11 @@ from typing import NotRequired, TypedDict
 
 from langgraph.graph import END, START, StateGraph
 
+from tada.domain.workbook import Workbook
+
 
 class State(TypedDict):
-    query: str
+    workbook: Workbook
     response: NotRequired[str]
 
 
@@ -14,7 +16,7 @@ class StateUpdate(TypedDict, total=False):
 
 
 def mock_llm(state: State) -> StateUpdate:
-    return {"response": f"Dummy response to query '{state['query']}'"}
+    return {"response": f"Dummy docs for '{state['workbook'].name}'"}
 
 
 builder = StateGraph(State)
