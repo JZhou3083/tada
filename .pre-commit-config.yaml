@@ -1,0 +1,39 @@
+# Specify `pre-commit install` should also install commit-msg hooks
+default_install_hook_types:
+  - pre-commit
+  - commit-msg
+
+# Configure when hooks run: pre-commit (on git commit) and manual (only when explicitly run)
+default_stages: [pre-commit, manual]
+
+repos:
+  # Ruff - An extremely fast Python linter and formatter written in Rust
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.1
+    hooks:
+      # Run the linter - checks code quality and style issues
+      - id: ruff-check
+        args: [--fix] # Automatically fix issues where possible
+      # Run the formatter - ensures consistent code formatting
+      - id: ruff-format
+
+  # Standard pre-commit hooks for general file hygiene
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      # Remove unnecessary whitespace at the end of lines
+      - id: trailing-whitespace
+      # Ensure files end with a newline character
+      - id: end-of-file-fixer
+      # Validate YAML file syntax
+      - id: check-yaml
+      # Prevent accidentally committing large files (default: >500KB)
+      - id: check-added-large-files
+
+  # Commitlint - validates commit messages
+  - repo: https://github.com/alessandrojcm/commitlint-pre-commit-hook
+    rev: v9.24.0
+    hooks:
+      - id: commitlint
+        stages: [commit-msg]
+        additional_dependencies: ["@commitlint/config-conventional"]
