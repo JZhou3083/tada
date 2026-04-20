@@ -1,0 +1,21 @@
+{
+  "branches": ["main"],
+  "plugins": [
+    "@semantic-release/commit-analyzer",
+    "@semantic-release/release-notes-generator",
+    "@semantic-release/changelog",
+    [
+      "@semantic-release/gitlab",
+      {
+        "gitlabUrl": "${CI_SERVER_URL}"
+      }
+    ],
+    [
+      "@semantic-release/git",
+      {
+        "assets": ["CHANGELOG.md"],
+        "message": "Release: ${nextRelease.version} [ci skip]\n\n${nextRelease.notes}"
+      }
+    ]
+  ]
+}
