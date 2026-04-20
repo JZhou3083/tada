@@ -1,3 +1,4 @@
+import json
 import time
 from pathlib import Path
 from typing import Annotated
@@ -6,6 +7,7 @@ import typer
 from rich.console import Console
 
 from tada.cli.prompts import ask_workbook_file
+from tada.graph.builder import State, graph
 
 app = typer.Typer(
     name="Tableau Documentation Agent",
@@ -83,6 +85,12 @@ def document_workbook(
     # TODO: convert this from a mockup to actually generating documentation
     with console.status("Generating documentation...", spinner="dots"):
         time.sleep(2)
+
+        graph_input = State(query=f"process workbook '{workbook.name}'")
+        result = graph.invoke(graph_input)
+
+    console.print("[green]✔[/green] Generated response:")
+    console.print_json(json=json.dumps(result))
 
     # TODO: determine actual export logic
     console.print("[green]✔[/green] Documentation exported → ???")
