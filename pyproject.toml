@@ -21,3 +21,7 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/tada"]
+
+# Commitizen is an optional tool for helping to write commitlint compliant commits.
+[tool.commitizen]
+name = "cz_conventional_commits"
