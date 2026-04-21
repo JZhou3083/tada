@@ -3,7 +3,7 @@ from typing import Any
 
 from lxml import etree
 
-from tada.xml.names import get_xml_local_name
+from tada.tableau.xml.tags import get_xml_local_name
 
 UI_ATTR_TOKEN = "tableausoftware.com/xml/user"
 
@@ -13,7 +13,7 @@ def xml_subtree_to_dict(
     *,
     strip_blank_text: bool = True,
     excluded_tags: set[str] | None = None,
-    skip_ui_attrs: bool = True,
+    skip_ui_attrs: bool = True,  # TODO: this a tableau specific policy and shouldn't live here
 ) -> dict[str, Any] | None:
     """
     Convert an XML element subtree into a nested dict.
