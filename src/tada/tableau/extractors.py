@@ -4,8 +4,8 @@ from typing import Any
 from lxml import etree
 
 from tada.tableau.field_refs import build_field_map, replace_values
-from tada.xml.serialize import xml_subtree_to_dict
-from tada.xml.xpath import select_elements
+from tada.tableau.xml.queries import select_elements
+from tada.tableau.xml.serialize import xml_subtree_to_dict
 
 
 def extract_keyed_subtrees(
