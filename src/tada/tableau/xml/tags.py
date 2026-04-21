@@ -1,7 +1,7 @@
 from lxml import etree
 
 
-def get_xml_local_name(tag: etree.QName | str) -> str:
+def get_local_tag_name(tag: etree.QName | str) -> str:
     """Return the local (namespace-free) name of an XML tag.
 
     Accepts either:

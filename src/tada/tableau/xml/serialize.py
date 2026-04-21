@@ -3,12 +3,12 @@ from typing import Any
 
 from lxml import etree
 
-from tada.tableau.xml.tags import get_xml_local_name
+from tada.tableau.xml.tags import get_local_tag_name
 
 UI_ATTR_TOKEN = "tableausoftware.com/xml/user"
 
 
-def xml_subtree_to_dict(
+def subtree_to_dict(
     el: etree._Element,
     *,
     strip_blank_text: bool = True,
@@ -24,16 +24,16 @@ def xml_subtree_to_dict(
     - Stores element text under "#text" (optionally stripping whitespace)
     """
     excluded_tags = excluded_tags or set()
-    if get_xml_local_name(el.tag) in excluded_tags:
+    if get_local_tag_name(el.tag) in excluded_tags:
         return None
 
     # Attributes (optionally skipping UI attrs)
     node: dict[str, Any] = {
-        get_xml_local_name(str(k)): str(v)
+        get_local_tag_name(str(k)): str(v)
         for k, v in el.attrib.items()
         if not (
             skip_ui_attrs
-            and (UI_ATTR_TOKEN in str(k) or UI_ATTR_TOKEN in get_xml_local_name(str(k)))
+            and (UI_ATTR_TOKEN in str(k) or UI_ATTR_TOKEN in get_local_tag_name(str(k)))
         )
     }
 
@@ -46,14 +46,14 @@ def xml_subtree_to_dict(
     # Children -> bucket by tag name, then collapse 1-item lists
     buckets: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for child in el:
-        child_dict = xml_subtree_to_dict(
+        child_dict = subtree_to_dict(
             child,
             strip_blank_text=strip_blank_text,
             excluded_tags=excluded_tags,
             skip_ui_attrs=skip_ui_attrs,
         )
         if child_dict is not None:
-            buckets[get_xml_local_name(child.tag)].append(child_dict)
+            buckets[get_local_tag_name(child.tag)].append(child_dict)
 
     for tag_name, items in buckets.items():
         node[tag_name] = items[0] if len(items) == 1 else items
