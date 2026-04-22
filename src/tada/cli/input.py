@@ -8,9 +8,9 @@ from questionary import Validator
 
 class WorkbookValidator(Validator):
     def validate(self, document):
-        if not document.text.lower().endswith(".twb"):
+        if not document.text.lower().endswith((".twb", ".twbx")):
             raise QValidationError(
-                message="Please select a file ending in .twb",
+                message="Please select a file ending in '.twb' or '.twbx'",
                 cursor_position=len(document.text),
             )
         if not Path(document.text).is_file():
@@ -20,12 +20,12 @@ class WorkbookValidator(Validator):
 
 
 workbook_completer = PathCompleter(
-    file_filter=lambda f: f.lower().endswith(".twb") or Path(f).is_dir()
+    file_filter=lambda f: f.lower().endswith((".twb", ".twbx")) or Path(f).is_dir()
 )
 
 
 def ask_workbook_file(prompt: str) -> Path:
-    """Interactive prompt to select a Tableau workbook file (.twb)."""
+    """Interactive prompt to select a Tableau workbook file (.twb or .twbx)."""
     report_path = questionary.path(
         prompt,
         completer=workbook_completer,
