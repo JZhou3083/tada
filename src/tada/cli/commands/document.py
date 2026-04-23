@@ -1,9 +1,13 @@
+import json
+
 import typer
 from rich.console import Console
 
 from tada.cli.input import ask_workbook_file
 from tada.cli.options import WorkbookOpt
 from tada.domain.workbook import Workbook
+from tada.graph.state import State
+from tada.graph.workflow import build_documentation_workflow
 
 console = Console()
 
@@ -26,23 +30,26 @@ def register(app: typer.Typer) -> None:
 
         # Prompt users to select a workbook if one wasn't provided as a CLI argument
         if not workbook_path:
-            workbook_path = ask_workbook_file("Select a Tableau workbook (.twb)")
+            workbook_path = ask_workbook_file(
+                "Select a Tableau workbook (.twb or .twbx)"
+            )
 
         # Pre-process the workbook using our pre-existing XML -> JSON parsing approach
         workbook = Workbook.from_file(workbook_path)
         console.print("[green]✔[/green] Processed notebook.")
 
-        print(workbook)
+        with console.status("Generating documentation...", spinner="dots"):
+            workflow = build_documentation_workflow()
+            workflow_input = State(
+                workbook=workbook, generation_plan=[], generated_docs={}
+            )
 
-        # TODO: convert this from a mockup to actually generating documentation
-        # with console.status("Generating documentation...", spinner="dots"):
-        #     time.sleep(2)
+            result = workflow.invoke(workflow_input)
 
-        #     graph_input = State(workbook=workbook)
-        #     result = graph.invoke(graph_input)
+        del result["workbook"]
 
-        # console.print("[green]✔[/green] Generated response:")
-        # console.print_json(json=json.dumps(result))
+        console.print("[green]✔[/green] Generated response:")
+        console.print_json(json=json.dumps(result))
 
         # TODO: determine actual export logic
         console.print("[green]✔[/green] Documentation exported → ???")

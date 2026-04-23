@@ -1,15 +1,26 @@
 from __future__ import annotations
 
-from typing import NotRequired, TypedDict
+from typing import Annotated, TypedDict
 
 from tada.domain.workbook import Workbook
 
 
+def merge_dicts(a: dict, b: dict) -> dict:
+    return {**a, **b}
+
+
 class State(TypedDict):
     workbook: Workbook
-    response: NotRequired[str]
+    generation_plan: list[str]
+    generated_docs: Annotated[dict[str, str], merge_dicts]
+
+
+class ComponentSummarizerState(TypedDict):
+    workbook: Workbook
+    component: str
+    generated_docs: Annotated[dict[str, str], merge_dicts]
 
 
 class StateUpdate(TypedDict, total=False):
-    query: str
-    response: str
+    generation_plan: list[str]
+    generated_docs: dict[str, str]
