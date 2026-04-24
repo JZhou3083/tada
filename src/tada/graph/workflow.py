@@ -17,11 +17,6 @@ def build_documentation_workflow() -> CompiledStateGraph:
     This function creates the workflow definition from scratch and returns a
     compiled graph ready to be invoked with a ``State`` payload.
 
-    The workflow is currently a simple linear pipeline with a single
-    ``mock_llm`` node:
-
-    ``START -> mock_llm -> END``
-
     Returns:
         A compiled LangGraph workflow that accepts ``State`` as input.
     """

@@ -24,7 +24,7 @@ def validate_workbook_option(value: Path | None) -> Path | None:
     if value and value.suffix not in (".twb", ".twbx"):
         raise typer.BadParameter(
             f"File '{value.name}' is not a Tableau workbook ('.twb' or '.twbx')",
-            param_hint="--workboook",
+            param_hint="--workbook",
         )
     return value
 

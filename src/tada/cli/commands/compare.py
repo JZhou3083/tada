@@ -1,10 +1,7 @@
 import typer
-from rich.console import Console
 
 from tada.cli.commands._base import AppCommand
-from tada.cli.display import print_tada_banner
-
-console = Console()
+from tada.cli.display import console, print_tada_banner
 
 
 def run_compare() -> None:
@@ -16,14 +13,16 @@ def run_compare() -> None:
     raise typer.Exit(0)
 
 
+def _cmd_compare() -> None:
+    print_tada_banner(console=console, subtitle="Workbook comparison")
+    run_compare()
+
+
 def register(app: typer.Typer) -> None:
-    @app.command(
+    app.command(
         name="compare",
         help="Review differences between two or more Tableau workbooks.",
-    )
-    def cmd_compare() -> None:
-        print_tada_banner(console=console, subtitle="Workbook comparison")
-        run_compare()
+    )(_cmd_compare)
 
 
 COMMAND = AppCommand(

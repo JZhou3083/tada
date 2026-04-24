@@ -1,12 +1,11 @@
 import questionary
 import typer
 from questionary import Choice
-from rich.console import Console
 
 from tada.cli.commands.chat import COMMAND as CHAT_COMMAND
 from tada.cli.commands.compare import COMMAND as COMPARE_COMMAND
 from tada.cli.commands.document import COMMAND as DOCUMENT_COMMAND
-from tada.cli.display import print_tada_banner
+from tada.cli.display import console, print_tada_banner
 
 app = typer.Typer(
     name="Tableau Documentation Agent (TaDA)",
@@ -17,7 +16,6 @@ app = typer.Typer(
         "launch the interactive menu."
     ),
 )
-console = Console()
 
 
 ALL_COMMANDS = [DOCUMENT_COMMAND, CHAT_COMMAND, COMPARE_COMMAND]
@@ -58,13 +56,13 @@ def interactive_launcher():
         for c in ALL_COMMANDS
     ]
 
-    selected = questionary.select(
-        "What do you want to do?",
-        choices,
-    ).ask()
-
-    if selected is None:
-        console.print("[yellow]No command was selected.")
+    try:
+        selected = questionary.select(
+            "What do you want to do?",
+            choices,
+        ).unsafe_ask()
+    except KeyboardInterrupt:
+        console.print("[yellow]Cancelled.")
         raise typer.Exit(code=0)
 
     handler = APP_COMMANDS.get(selected)
@@ -75,9 +73,8 @@ def interactive_launcher():
     handler()
 
 
-for cmd in ALL_COMMANDS:
-    cmd.register(app)
-
-
 def main():
+    for cmd in ALL_COMMANDS:
+        cmd.register(app)
+
     app()

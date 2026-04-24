@@ -30,5 +30,5 @@ def ask_workbook_file(prompt: str) -> Path:
         prompt,
         completer=workbook_completer,
         validate=WorkbookValidator,
-    ).ask()
+    ).unsafe_ask()
     return Path(report_path)
