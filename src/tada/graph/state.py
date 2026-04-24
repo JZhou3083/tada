@@ -13,7 +13,7 @@ def merge_dicts(a: dict, b: dict) -> dict:
 class State(TypedDict):
     workbook: Workbook
     generation_plan: list[WorkbookSection]
-    generated_docs: Annotated[dict[str, str], merge_dicts]
+    generated_summaries: Annotated[dict[str, str], merge_dicts]
 
 
 class SectionSummarizerState(TypedDict):
@@ -22,4 +22,4 @@ class SectionSummarizerState(TypedDict):
 
 
 class StateUpdate(TypedDict, total=False):
-    generated_docs: dict[WorkbookSection, str]
+    generated_summaries: dict[WorkbookSection, str]
