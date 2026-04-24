@@ -8,6 +8,6 @@ from tada.graph.state import State
 
 def route_plan_to_workers(state: State) -> list[Send]:
     return [
-        Send(NodeId.SUMMARIZE, {"section_id": section})
+        Send(NodeId.SUMMARIZE, {"workbook": state["workbook"], "section_id": section})
         for section in state["generation_plan"]
     ]

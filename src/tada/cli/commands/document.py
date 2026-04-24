@@ -8,6 +8,7 @@ from tada.cli.display import print_tada_banner
 from tada.cli.input import ask_workbook_file
 from tada.cli.options import WorkbookOpt
 from tada.domain.workbook import Workbook
+from tada.domain.workbook_sections import WorkbookSection
 from tada.graph.state import State
 from tada.graph.workflow import build_documentation_workflow
 
@@ -31,7 +32,7 @@ def run_document(workbook_path: WorkbookOpt = None) -> None:
         workflow = build_documentation_workflow()
         workflow_input = State(
             workbook=workbook,
-            generation_plan=["datasources", "worksheets"],
+            generation_plan=[WorkbookSection.DATASOURCES, WorkbookSection.DASHBOARDS],
             generated_docs={},
         )
 

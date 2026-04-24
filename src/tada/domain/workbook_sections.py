@@ -15,6 +15,6 @@ class WorkbookSection(str, Enum):
     PARAMETERS = "parameters"
     TABLES = "tables"
 
-    def fetch(self, workbook: Workbook) -> Any:
+    def fetch_from(self, workbook: Workbook) -> Any:
         """Return the corresponding attribute from a Workbook object."""
         return getattr(workbook, self.value)

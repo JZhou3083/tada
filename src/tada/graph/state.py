@@ -18,10 +18,8 @@ class State(TypedDict):
 
 class SectionSummarizerState(TypedDict):
     workbook: Workbook
-    generated_docs: Annotated[dict[WorkbookSection, str], merge_dicts]
     section_id: WorkbookSection
 
 
 class StateUpdate(TypedDict, total=False):
-    generation_plan: list[str]
     generated_docs: dict[WorkbookSection, str]
