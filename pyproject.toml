@@ -11,7 +11,6 @@ dependencies = [
     "pydantic>=2.13.3",
     "questionary>=2.1.1",
     "rich>=15.0.0",
-    "textual>=8.2.4",
     "typer>=0.24.1",
 ]
 
