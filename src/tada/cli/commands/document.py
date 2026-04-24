@@ -26,7 +26,7 @@ def run_document(workbook_path: WorkbookOpt = None) -> None:
 
     # Pre-process the workbook using our pre-existing XML -> JSON parsing approach
     workbook = Workbook.from_file(workbook_path)
-    console.print("[green]✔[/green] Processed notebook.")
+    console.print("[green]✔[/green] Processed workbook.")
 
     with console.status("Generating documentation...", spinner="dots"):
         workflow = build_documentation_workflow()
