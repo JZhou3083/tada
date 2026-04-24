@@ -29,7 +29,11 @@ def run_document(workbook_path: WorkbookOpt = None) -> None:
 
     with console.status("Generating documentation...", spinner="dots"):
         workflow = build_documentation_workflow()
-        workflow_input = State(workbook=workbook, generation_plan=[], generated_docs={})
+        workflow_input = State(
+            workbook=workbook,
+            generation_plan=["datasources", "worksheets"],
+            generated_docs={},
+        )
 
         result = workflow.invoke(workflow_input)
 

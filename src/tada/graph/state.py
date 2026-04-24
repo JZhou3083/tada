@@ -17,8 +17,8 @@ class State(TypedDict):
 
 class ComponentSummarizerState(TypedDict):
     workbook: Workbook
-    component: str
     generated_docs: Annotated[dict[str, str], merge_dicts]
+    component_id: str
 
 
 class StateUpdate(TypedDict, total=False):

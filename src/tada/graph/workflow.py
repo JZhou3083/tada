@@ -6,7 +6,6 @@ from langgraph.graph.state import CompiledStateGraph
 from tada.graph.ids import NodeId
 from tada.graph.nodes import (
     generate_section_docs,
-    plan_doc_generation,
 )
 from tada.graph.routers import route_plan_to_workers
 from tada.graph.state import State
@@ -28,11 +27,9 @@ def build_documentation_workflow() -> CompiledStateGraph:
     """
     builder = StateGraph(State)
 
-    builder.add_node(NodeId.PLAN, plan_doc_generation)
     builder.add_node(NodeId.SUMMARIZE, generate_section_docs)
 
-    builder.add_edge(START, NodeId.PLAN)
-    builder.add_conditional_edges(NodeId.PLAN, route_plan_to_workers)
+    builder.add_conditional_edges(START, route_plan_to_workers)
     builder.add_edge(NodeId.SUMMARIZE, END)
 
     return builder.compile()
