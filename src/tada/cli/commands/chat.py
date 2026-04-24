@@ -2,6 +2,7 @@ import typer
 from rich.console import Console
 
 from tada.cli.commands._base import AppCommand
+from tada.cli.display import print_tada_banner
 
 console = Console()
 
@@ -21,6 +22,7 @@ def register(app: typer.Typer) -> None:
         help="Ask questions about a Tableau workbook in a free-form conversation.",
     )
     def cmd_chat():
+        print_tada_banner(console, subtitle="Workbook QA")
         run_chat()
 
 

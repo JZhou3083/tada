@@ -6,6 +6,7 @@ from rich.console import Console
 from tada.cli.commands.chat import COMMAND as CHAT_COMMAND
 from tada.cli.commands.compare import COMMAND as COMPARE_COMMAND
 from tada.cli.commands.document import COMMAND as DOCUMENT_COMMAND
+from tada.cli.display import print_tada_banner
 
 app = typer.Typer(
     name="Tableau Documentation Agent (TaDA)",
@@ -28,6 +29,7 @@ def menu(ctx: typer.Context):
     """
     LLM-powered CLI tool for documenting and discussing Tableau workbooks.
     """
+
     # If a subcommand was provided then proceed as normal
     if ctx.invoked_subcommand is not None:
         return
@@ -37,6 +39,11 @@ def menu(ctx: typer.Context):
 
 
 def interactive_launcher():
+    print_tada_banner(
+        console,
+        subtitle="Interactive menu",
+        hint="Tip: Use ↑/↓ to move, Enter to select, Ctrl+C to quit.",
+    )
     choices = [
         Choice(
             title=[
@@ -49,8 +56,7 @@ def interactive_launcher():
         for c in ALL_COMMANDS
     ]
     selected = questionary.select(
-        "What do you want to do?",
-        choices,
+        "What do you want to do?", choices, instruction=" "
     ).ask()
 
     try:

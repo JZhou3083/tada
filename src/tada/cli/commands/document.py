@@ -4,6 +4,7 @@ import typer
 from rich.console import Console
 
 from tada.cli.commands._base import AppCommand
+from tada.cli.display import print_tada_banner
 from tada.cli.input import ask_workbook_file
 from tada.cli.options import WorkbookOpt
 from tada.domain.workbook import Workbook
@@ -47,6 +48,7 @@ def register(app: typer.Typer) -> None:
         help="Document a Tableau workbook using a standardized workflow.",
     )
     def cmd_document(workbook_path: WorkbookOpt = None) -> None:
+        print_tada_banner(console, subtitle="Documentation generator")
         run_document(workbook_path)
 
 
