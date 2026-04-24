@@ -35,15 +35,18 @@ def menu(ctx: typer.Context):
         return
 
     # No subcommand -> route to the interactive launcher
-    interactive_launcher()
-
-
-def interactive_launcher():
     print_tada_banner(
         console,
         subtitle="Interactive menu",
         hint="Tip: Use ↑/↓ to move, Enter to select, Ctrl+C to quit.",
     )
+    interactive_launcher()
+
+
+def interactive_launcher():
+    """
+    Prompt user to select one of the TaDA commands from an interactive menu and run it.
+    """
     choices = [
         Choice(
             title=[
@@ -55,15 +58,23 @@ def interactive_launcher():
         )
         for c in ALL_COMMANDS
     ]
+
     selected = questionary.select(
-        "What do you want to do?", choices, instruction=" "
+        "What do you want to do?",
+        choices,
+        instruction=" ",  # suppress default hint line
     ).ask()
 
-    try:
-        APP_COMMANDS[selected]()
-    except KeyError:
-        console.print("[bold red]Error[/bold red] Unknown command selected.")
+    if selected is None:
+        console.print("[yellow]No command was selected.")
         raise typer.Exit(code=0)
+
+    handler = APP_COMMANDS.get(selected)
+    if handler is None:
+        console.print("[bold red]Error[/bold red] Unknown command selected.")
+        raise typer.Exit(code=1)
+
+    handler()
 
 
 for cmd in ALL_COMMANDS:
