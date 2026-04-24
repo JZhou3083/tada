@@ -24,7 +24,7 @@ def build_documentation_workflow() -> CompiledStateGraph:
 
     builder.add_node(NodeId.SUMMARIZE, generate_section_docs)
 
-    builder.add_conditional_edges(START, route_plan_to_workers)
+    builder.add_conditional_edges(START, route_plan_to_workers, [NodeId.SUMMARIZE])
     builder.add_edge(NodeId.SUMMARIZE, END)
 
     return builder.compile()
