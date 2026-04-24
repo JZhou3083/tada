@@ -38,7 +38,6 @@ def menu(ctx: typer.Context):
     print_tada_banner(
         console,
         subtitle="Interactive menu",
-        hint="Tip: Use ↑/↓ to move, Enter to select, Ctrl+C to quit.",
     )
     interactive_launcher()
 
@@ -62,7 +61,6 @@ def interactive_launcher():
     selected = questionary.select(
         "What do you want to do?",
         choices,
-        instruction=" ",  # suppress default hint line
     ).ask()
 
     if selected is None:

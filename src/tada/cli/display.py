@@ -8,7 +8,6 @@ def print_tada_banner(
     console: Console,
     *,
     subtitle: str | None = None,
-    hint: str | None = None,
 ) -> None:
     title = Text()
     title.append("TaDA", style="bold cyan")
@@ -22,11 +21,6 @@ def print_tada_banner(
         sub = Text(subtitle, style="dim")
         body.append("\n")
         body.append_text(sub)
-
-    if hint:
-        tip = Text(hint, style="dim")
-        body.append("\n\n")
-        body.append_text(tip)
 
     console.print(
         Panel(
