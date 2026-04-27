@@ -55,6 +55,17 @@ def interactive_launcher():
         )
         for c in ALL_COMMANDS
     ]
+    # Add an exit option
+    choices.append(
+        Choice(
+            title=[
+                ("bold", "exit"),
+                ("", ": "),
+                ("fg:ansibrightblack", "Quit the application"),
+            ],
+            value="exit",
+        )
+    )
 
     try:
         selected = questionary.select(
@@ -62,6 +73,10 @@ def interactive_launcher():
             choices,
         ).unsafe_ask()
     except KeyboardInterrupt:
+        console.print("[yellow]Cancelled.")
+        raise typer.Exit(code=0)
+
+    if selected == "exit":
         console.print("[yellow]Cancelled.")
         raise typer.Exit(code=0)
 
