@@ -1,7 +1,10 @@
+import logging
 from datetime import datetime
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
+from rich.console import Console
+from rich.logging import RichHandler
 
 _DEBUG_ROOT = Path(".tada_debug")
 _GITIGNORE_CONTENT = "*\n!.gitignore\n"
@@ -31,6 +34,47 @@ class CLIConfig(BaseModel):
         if not gitignore.exists():
             gitignore.write_text(_GITIGNORE_CONTENT)
         return self.debug_dir
+
+    def configure_logging(self, console: Console) -> None:
+        handlers: list[logging.Handler] = []
+
+        # Rich console handler - pretty & minimal for use in non-debug mode
+        console_handler = RichHandler(
+            console=console,
+            show_time=self.debug,
+            show_path=self.debug,
+            rich_tracebacks=True,
+            tracebacks_show_locals=self.debug,
+        )
+        console_handler.setLevel(logging.DEBUG if self.debug else logging.WARNING)
+        handlers.append(console_handler)
+
+        # File handler - only in debug mode, full verbosity
+        if self.debug:
+            log_file = self.ensure_debug_dir() / "debug.log"
+            file_handler = logging.FileHandler(log_file)
+            file_handler.setLevel(logging.DEBUG)
+            file_handler.setFormatter(
+                logging.Formatter(
+                    "%(asctime)s  %(name)-40s  %(levelname)-8s  %(message)s"
+                )
+            )
+            handlers.append(file_handler)
+
+        logging.basicConfig(
+            level=logging.DEBUG if self.debug else logging.WARNING,
+            handlers=handlers,
+            force=True,  # override any library config that ran before this
+        )
+
+        # Always silenced regardless of debug mode
+        for always_noisy in ("asyncio",):
+            logging.getLogger(always_noisy).setLevel(logging.WARNING)
+
+        # Silenced in normal mode, verbose in debug
+        if not self.debug:
+            for noisy in ("httpx", "httpcore", "langgraph", "langchain"):
+                logging.getLogger(noisy).setLevel(logging.WARNING)
 
 
 cli_config = CLIConfig()

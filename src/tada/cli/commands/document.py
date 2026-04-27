@@ -1,3 +1,5 @@
+import logging
+
 import questionary
 import typer
 from questionary import Choice
@@ -11,6 +13,8 @@ from tada.domain.workbook import Workbook
 from tada.domain.workbook_sections import WorkbookSection
 from tada.graph.state import State
 from tada.graph.workflow import build_documentation_workflow
+
+logger = logging.getLogger(__name__)
 
 
 def run_document(workbook_path: WorkbookOpt = None) -> None:
@@ -67,6 +71,7 @@ def run_document(workbook_path: WorkbookOpt = None) -> None:
 
 def _cmd_document(workbook_path: WorkbookOpt = None, debug: DebugOpt = False) -> None:
     cli_config.apply_debug(debug)
+    cli_config.configure_logging(console)
     print_tada_banner(
         console,
         subtitle="Documentation generator",
