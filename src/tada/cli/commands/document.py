@@ -11,7 +11,7 @@ from tada.cli.input import ask_workbook_file
 from tada.cli.options import DebugOpt, WorkbookOpt
 from tada.domain.workbook import Workbook
 from tada.domain.workbook_sections import WorkbookSection
-from tada.graph.state import State
+from tada.graph.state import InputState
 from tada.graph.workflow import build_documentation_workflow
 
 logger = logging.getLogger(__name__)
@@ -54,7 +54,7 @@ def run_document(workbook_path: WorkbookOpt = None) -> None:
 
     with console.status("Generating documentation...", spinner="dots"):
         workflow = build_documentation_workflow()
-        workflow_input = State(
+        workflow_input = InputState(
             workbook=workbook,
             generation_plan=selected_sections,
         )
