@@ -40,6 +40,7 @@ def menu(
         return
 
     # No subcommand -> route to the interactive launcher
+    cli_config.configure_logging(console)
     print_tada_banner(
         console,
         subtitle="Interactive menu",

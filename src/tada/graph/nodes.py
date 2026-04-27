@@ -17,7 +17,9 @@ def generate_section_summary(
     # TODO: retrieve template based on section and run generation
     summary = str(len(state["section_data"]))
     logger.debug(
-        "Generated summary for section %r (%d chars)", state["section"], len(summary)
+        "Generated summary for section %r (%d chars)",
+        state["section"].value,
+        len(summary),
     )
 
     return {"generated_summaries": {state["section"]: summary}}

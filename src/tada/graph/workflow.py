@@ -59,5 +59,5 @@ def build_documentation_workflow(
     builder.add_edge(NodeId.COMPILE_SUMMARIES, END)
 
     workflow = builder.compile(checkpointer=checkpointer)
-    logger.debug("Workflow compiled: %s", workflow.get_graph().print_ascii())
+    logger.debug("Workflow compiled:\n%s", workflow.get_graph().draw_ascii())
     return workflow
