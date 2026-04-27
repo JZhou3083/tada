@@ -3,11 +3,14 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
+_DEBUG_ROOT = Path(".tada_debug")
+_GITIGNORE_CONTENT = "*\n!.gitignore\n"
+
 
 def _default_debug_dir() -> Path:
     # TODO: when shipping as a tool, it'd be best to move debug dir to Path.home() / ".tada"
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    return Path(".tada-debug") / timestamp
+    return _DEBUG_ROOT / timestamp
 
 
 class CLIConfig(BaseModel):
@@ -24,6 +27,9 @@ class CLIConfig(BaseModel):
 
     def ensure_debug_dir(self) -> Path:
         self.debug_dir.mkdir(parents=True, exist_ok=True)
+        gitignore = _DEBUG_ROOT / ".gitignore"
+        if not gitignore.exists():
+            gitignore.write_text(_GITIGNORE_CONTENT)
         return self.debug_dir
 
 
