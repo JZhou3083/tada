@@ -47,6 +47,6 @@ DebugOpt = Annotated[
     bool,
     typer.Option(
         "--debug",
-        help="Save logs and intermediary JSON for this run.",
+        help="Enable debug mode: print logs to the terminal and save logs and intermediate JSON to .tada_debug/.",
     ),
 ]
