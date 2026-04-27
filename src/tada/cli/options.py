@@ -42,3 +42,11 @@ WorkbookOpt = Annotated[
         readable=True,
     ),
 ]
+
+DebugOpt = Annotated[
+    bool,
+    typer.Option(
+        "--debug",
+        help="Save logs and intermediary JSON for this run.",
+    ),
+]

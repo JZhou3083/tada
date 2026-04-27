@@ -5,7 +5,9 @@ from questionary import Choice
 from tada.cli.commands.chat import COMMAND as CHAT_COMMAND
 from tada.cli.commands.compare import COMMAND as COMPARE_COMMAND
 from tada.cli.commands.document import COMMAND as DOCUMENT_COMMAND
+from tada.cli.config import cli_config
 from tada.cli.display import console, print_tada_banner
+from tada.cli.options import DebugOpt
 
 app = typer.Typer(
     name="Tableau Documentation Agent (TaDA)",
@@ -23,10 +25,15 @@ APP_COMMANDS = {cmd.name: cmd.run for cmd in ALL_COMMANDS}
 
 
 @app.callback(invoke_without_command=True)
-def menu(ctx: typer.Context):
+def menu(
+    ctx: typer.Context,
+    debug: DebugOpt = False,
+):
     """
     LLM-powered CLI tool for documenting and discussing Tableau workbooks.
     """
+    # Apply debug status globally so subcommands can access it
+    cli_config.apply_debug(debug)
 
     # If a subcommand was provided then proceed as normal
     if ctx.invoked_subcommand is not None:

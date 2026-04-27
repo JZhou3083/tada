@@ -1,7 +1,9 @@
 import typer
 
 from tada.cli.commands._base import AppCommand
+from tada.cli.config import cli_config
 from tada.cli.display import console, print_tada_banner
+from tada.cli.options import DebugOpt
 
 
 def run_chat() -> None:
@@ -13,7 +15,8 @@ def run_chat() -> None:
     raise typer.Exit(0)
 
 
-def _cmd_chat():
+def _cmd_chat(debug: DebugOpt = False):
+    cli_config.apply_debug(debug)
     print_tada_banner(console, subtitle="Workbook QA")
     run_chat()
 

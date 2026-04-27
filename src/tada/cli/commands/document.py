@@ -3,9 +3,10 @@ import typer
 from questionary import Choice
 
 from tada.cli.commands._base import AppCommand
+from tada.cli.config import cli_config
 from tada.cli.display import console, print_tada_banner
 from tada.cli.input import ask_workbook_file
-from tada.cli.options import WorkbookOpt
+from tada.cli.options import DebugOpt, WorkbookOpt
 from tada.domain.workbook import Workbook
 from tada.domain.workbook_sections import WorkbookSection
 from tada.graph.state import State
@@ -60,7 +61,8 @@ def run_document(workbook_path: WorkbookOpt = None) -> None:
     console.print("[green]✔[/green] Documentation exported → ???")
 
 
-def _cmd_document(workbook_path: WorkbookOpt = None) -> None:
+def _cmd_document(workbook_path: WorkbookOpt = None, debug: DebugOpt = False) -> None:
+    cli_config.apply_debug(debug)
     print_tada_banner(
         console,
         subtitle="Documentation generator",
