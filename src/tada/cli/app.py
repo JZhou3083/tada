@@ -6,7 +6,7 @@ from tada.cli.commands.chat import COMMAND as CHAT_COMMAND
 from tada.cli.commands.compare import COMMAND as COMPARE_COMMAND
 from tada.cli.commands.document import COMMAND as DOCUMENT_COMMAND
 from tada.cli.config import cli_config
-from tada.cli.display import console, print_tada_banner
+from tada.cli.display import console, print_debug_notice, print_tada_banner
 from tada.cli.options import DebugOpt
 
 app = typer.Typer(
@@ -44,6 +44,8 @@ def menu(
         console,
         subtitle="Interactive menu",
     )
+    if cli_config.debug:
+        print_debug_notice(console, debug_dir=cli_config.debug_dir)
     interactive_launcher()
 
 

@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from rich.align import Align
 from rich.console import Console
 from rich.panel import Panel
@@ -35,4 +37,19 @@ def print_tada_banner(
             border_style="cyan",
             padding=(1, 2),
         ),
+    )
+
+
+def print_debug_notice(console: Console, debug_dir: Path) -> None:
+    body = Text()
+    body.append("Debug mode active\n", style="bold yellow")
+    body.append("Artifacts will be written to ", style="dim")
+    body.append(str(debug_dir), style="cyan")
+
+    console.print(
+        Panel(
+            body,
+            border_style="yellow",
+            padding=(0, 2),
+        )
     )

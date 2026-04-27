@@ -4,7 +4,7 @@ from questionary import Choice
 
 from tada.cli.commands._base import AppCommand
 from tada.cli.config import cli_config
-from tada.cli.display import console, print_tada_banner
+from tada.cli.display import console, print_debug_notice, print_tada_banner
 from tada.cli.input import ask_workbook_file
 from tada.cli.options import DebugOpt, WorkbookOpt
 from tada.domain.workbook import Workbook
@@ -67,6 +67,8 @@ def _cmd_document(workbook_path: WorkbookOpt = None, debug: DebugOpt = False) ->
         console,
         subtitle="Documentation generator",
     )
+    if cli_config.debug:
+        print_debug_notice(console, debug_dir=cli_config.debug_dir)
     run_document(workbook_path)
 
 
