@@ -5,7 +5,11 @@ description = "An LLM-driven CLI tool for working with Tableau workbooks, with a
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "langgraph>=1.1.8",
+    "lxml>=6.1.0",
+    "lxml-stubs>=0.5.1",
     "prompt-toolkit>=3.0.52",
+    "pydantic>=2.13.3",
     "questionary>=2.1.1",
     "rich>=15.0.0",
     "typer>=0.24.1",

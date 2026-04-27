@@ -1,0 +1,33 @@
+import typer
+
+from tada.cli.commands._base import AppCommand
+from tada.cli.display import console, print_tada_banner
+
+
+def run_compare() -> None:
+    # TODO: create comparison logic or delete command
+    console.print(
+        "[yellow]Command not yet available.[/yellow] "
+        "Workbook comparison is still under development."
+    )
+    raise typer.Exit(0)
+
+
+def _cmd_compare() -> None:
+    print_tada_banner(console=console, subtitle="Workbook comparison")
+    run_compare()
+
+
+def register(app: typer.Typer) -> None:
+    app.command(
+        name="compare",
+        help="Review differences between two or more Tableau workbooks.",
+    )(_cmd_compare)
+
+
+COMMAND = AppCommand(
+    name="compare",
+    interactive_menu_desc="Compare multiple workbooks",
+    register=register,
+    run=run_compare,
+)

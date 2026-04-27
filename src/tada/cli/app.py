@@ -1,118 +1,95 @@
-import time
-from pathlib import Path
-from typing import Annotated
-
+import questionary
 import typer
-from rich.console import Console
+from questionary import Choice
 
-from tada.cli.prompts import ask_workbook_file
+from tada.cli.commands.chat import COMMAND as CHAT_COMMAND
+from tada.cli.commands.compare import COMMAND as COMPARE_COMMAND
+from tada.cli.commands.document import COMMAND as DOCUMENT_COMMAND
+from tada.cli.display import console, print_tada_banner
 
 app = typer.Typer(
-    name="Tableau Documentation Agent",
-    no_args_is_help=True,
-    help="CLI interface for the Tableau Documentation Agent.",
-    add_completion=True,
-)
-console = Console()
-
-
-def validate_workbook_option(value: Path | None) -> Path | None:
-    """
-    Validate that an optional file path refers to a Tableau workbook (.twb).
-
-    This function is intended for use as a Typer option callback. If a path
-    is provided and does not have a ``.twb`` suffix, a ``typer.BadParameter``
-    error is raised to signal invalid CLI input.
-
-    Args:
-        value: Optional path supplied via the ``--file`` option.
-
-    Returns:
-        The original path if valid, or ``None`` if no path was provided.
-
-    Raises:
-        typer.BadParameter: If the path does not point to a ``.twb`` file.
-    """
-    if value and value.suffix != ".twb":
-        raise typer.BadParameter(
-            f"File '{value.name}' is not a Tableau workbook (.twb)",
-            param_hint="--workboook",
-        )
-    return value
-
-
-WorkbookOpt = Annotated[
-    Path | None,
-    typer.Option(
-        "--workbook",
-        "-w",
-        callback=validate_workbook_option,
-        help="Path to a Tableau workbook (.twb). If omitted, you will be prompted to select one.",
-        exists=True,
-        file_okay=True,
-        dir_okay=False,
-        readable=True,
+    name="Tableau Documentation Agent (TaDA)",
+    no_args_is_help=False,
+    rich_markup_mode="rich",
+    epilog=(
+        "[bold cyan]Tip:[/bold cyan] Run [bold]tada[/bold] with no arguments to "
+        "launch the interactive menu."
     ),
-]
-
-
-@app.command(
-    name="document",
-    help="Document a Tableau workbook using a standardized workflow.",
 )
-def document_workbook(
-    workbook: WorkbookOpt = None,
-) -> None:
-    """
-    Generate documentation for a Tableau workbook.
 
-    If no workbook is provided via the CLI, you will be prompted to interactively select
-    a Tableau workbook (.twb). The command then processes the workbook and produces
-    documentation output.
+
+ALL_COMMANDS = [DOCUMENT_COMMAND, CHAT_COMMAND, COMPARE_COMMAND]
+APP_COMMANDS = {cmd.name: cmd.run for cmd in ALL_COMMANDS}
+
+
+@app.callback(invoke_without_command=True)
+def menu(ctx: typer.Context):
+    """
+    LLM-powered CLI tool for documenting and discussing Tableau workbooks.
     """
 
-    # Prompt users to select a workbook if one wasn't provided as a CLI argument
-    if not workbook:
-        workbook = ask_workbook_file("Select a Tableau workbook (.twb)")
+    # If a subcommand was provided then proceed as normal
+    if ctx.invoked_subcommand is not None:
+        return
 
-    # Pre-process the workbook using our pre-existing XML -> JSON parsing approach
-    # TODO: convert this from a mockup to actual functional pre-processing
-    with console.status("Processing workbook...", spinner="dots"):
-        time.sleep(1)
-
-    # TODO: convert this from a mockup to actually generating documentation
-    with console.status("Generating documentation...", spinner="dots"):
-        time.sleep(2)
-
-    # TODO: determine actual export logic
-    console.print("[green]✔[/green] Documentation exported → ???")
-
-
-@app.command(
-    name="compare",
-    help="Review differences between two or more Tableau workbooks.",
-)
-def compare_workbooks():
-    # TODO: create comparison logic or delete command
-    console.print(
-        "[yellow]Command not yet available.[/yellow] "
-        "Workbook comparison is still under development."
+    # No subcommand -> route to the interactive launcher
+    print_tada_banner(
+        console,
+        subtitle="Interactive menu",
     )
-    raise typer.Exit(0)
+    interactive_launcher()
 
 
-@app.command(
-    name="chat",
-    help="Ask questions about a Tableau workbook in a free-form conversation.",
-)
-def chat_with_workbooks():
-    # TODO: create chat logic or delete command
-    console.print(
-        "[yellow]Command not yet available.[/yellow] "
-        "Chat features are still under development."
+def interactive_launcher():
+    """
+    Prompt user to select one of the TaDA commands from an interactive menu and run it.
+    """
+    choices = [
+        Choice(
+            title=[
+                ("bold", c.name),
+                ("", ": "),
+                ("fg:ansibrightblack", c.interactive_menu_desc),
+            ],
+            value=c.name,
+        )
+        for c in ALL_COMMANDS
+    ]
+    # Add an exit option
+    choices.append(
+        Choice(
+            title=[
+                ("bold", "exit"),
+                ("", ": "),
+                ("fg:ansibrightblack", "Quit the application"),
+            ],
+            value="exit",
+        )
     )
-    raise typer.Exit(0)
+
+    try:
+        selected = questionary.select(
+            "What do you want to do?",
+            choices,
+        ).unsafe_ask()
+    except KeyboardInterrupt:
+        console.print("[yellow]Cancelled.")
+        raise typer.Exit(code=0)
+
+    if selected == "exit":
+        console.print("[yellow]Cancelled.")
+        raise typer.Exit(code=0)
+
+    handler = APP_COMMANDS.get(selected)
+    if handler is None:
+        console.print("[bold red]Error[/bold red] Unknown command selected.")
+        raise typer.Exit(code=1)
+
+    handler()
 
 
 def main():
+    for cmd in ALL_COMMANDS:
+        cmd.register(app)
+
     app()
