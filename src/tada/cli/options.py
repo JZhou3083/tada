@@ -9,8 +9,8 @@ def validate_workbook_option(value: Path | None) -> Path | None:
     Validate that an optional file path refers to a Tableau workbook (.twb or .twbx).
 
     This function is intended for use as a Typer option callback. If a path
-    is provided and does not have a ``.twb`` suffix, a ``typer.BadParameter``
-    error is raised to signal invalid CLI input.
+    is provided and does not have a ``.twb`` or ```.twbx``` suffix, a
+    ``typer.BadParameter`` error is raised to signal invalid CLI input.
 
     Args:
         value: Optional path supplied via the ``--file`` option.
@@ -19,7 +19,7 @@ def validate_workbook_option(value: Path | None) -> Path | None:
         The original path if valid, or ``None`` if no path was provided.
 
     Raises:
-        typer.BadParameter: If the path does not point to a ``.twb`` file.
+        typer.BadParameter: If the path does not point to a ``.twb`` or ```.twbx``` file.
     """
     if value and value.suffix not in (".twb", ".twbx"):
         raise typer.BadParameter(
