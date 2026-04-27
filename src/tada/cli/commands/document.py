@@ -33,12 +33,14 @@ def run_document(workbook_path: WorkbookOpt = None) -> None:
             raise typer.Exit(code=0)
 
     # Pre-process the workbook using our pre-existing XML -> JSON parsing approach
+    logger.debug("Parsing workbook: %s", workbook_path)
     workbook = Workbook.from_file(workbook_path)
+    logger.debug("Parsed workbook.")
     console.print("[green]✔[/green] Processed workbook.")
 
     if cli_config.debug:
-        cli_config.ensure_debug_dir()
         workbook.write_debug(cli_config.debug_dir)
+        logger.debug("Wrote parsed workbook contents to %s", cli_config.debug_dir)
 
     choices = [Choice(title=s.value, value=s) for s in list(WorkbookSection)]
     try:
@@ -58,7 +60,11 @@ def run_document(workbook_path: WorkbookOpt = None) -> None:
             generated_summaries={},
         )
 
+        logger.debug(
+            "Invoking documentation graph...",
+        )
         result = workflow.invoke(workflow_input)
+        logger.debug("Graph complete.")
 
     output = {k: v for k, v in result.items() if k != "workbook"}
 
