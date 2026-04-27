@@ -57,7 +57,6 @@ def run_document(workbook_path: WorkbookOpt = None) -> None:
         workflow_input = State(
             workbook=workbook,
             generation_plan=selected_sections,
-            generated_summaries={},
         )
 
         logger.debug(
