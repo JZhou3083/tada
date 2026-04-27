@@ -1,7 +1,8 @@
+import json
 from pathlib import Path
 from typing import Any, Self
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from tada.tableau.extractors import (
     extract_actions,
@@ -17,6 +18,8 @@ from tada.tableau.xml.prune import drop_xpaths
 
 
 class Workbook(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
     name: str
     datasources: dict[str, Any]
     calculations: dict[str, Any]
@@ -64,3 +67,19 @@ class Workbook(BaseModel):
             parameters=parameters,
             tables=tables,
         )
+
+    def write_debug(self, debug_dir: Path) -> None:
+        """
+        Write all parsed workbook attributes to JSON files in ``debug_dir``.
+        """
+        data = self.model_dump(mode="json")
+        workbook_attributes = {k: v for k, v in data.items() if k != "name"}
+
+        for attribute_name, attribute_value in workbook_attributes.items():
+            output_path = debug_dir / f"{attribute_name}.json"
+            output_path.write_text(
+                json.dumps(
+                    attribute_value, indent=2, ensure_ascii=False, sort_keys=True
+                ),
+                encoding="utf-8",
+            )

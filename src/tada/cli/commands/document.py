@@ -32,6 +32,10 @@ def run_document(workbook_path: WorkbookOpt = None) -> None:
     workbook = Workbook.from_file(workbook_path)
     console.print("[green]✔[/green] Processed workbook.")
 
+    if cli_config.debug:
+        cli_config.ensure_debug_dir()
+        workbook.write_debug(cli_config.debug_dir)
+
     choices = [Choice(title=s.value, value=s) for s in list(WorkbookSection)]
     try:
         selected_sections = questionary.checkbox(
