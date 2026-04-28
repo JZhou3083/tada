@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 
 import questionary
 import typer
@@ -64,12 +65,11 @@ def run_document(workbook_path: WorkbookOpt = None) -> None:
         result = workflow.invoke(workflow_input)
         logger.debug("Graph complete.")
 
-    output = {k: v for k, v in result.items() if k != "workbook"}
+    console.print("[green]✔[/green] Generated response")
 
-    console.print("[green]✔[/green] Generated response:")
-    console.print_json(data=output)
-
-    # TODO: determine actual export logic
+    # TODO: determine actual export logic - current fallback sends to output.md
+    output_file = Path("output.md")
+    output_file.write_text(result["final_doc"])
     console.print("[green]✔[/green] Documentation exported → ???")
 
 
