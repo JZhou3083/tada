@@ -1,25 +1,29 @@
-from __future__ import annotations
+from typing import Annotated, Any, TypedDict
 
-from typing import Annotated, TypedDict
+from tada.domain.workbook import Workbook, WorkbookSection
 
-from tada.domain.workbook import Workbook
-from tada.domain.workbook_sections import WorkbookSection
+
+class InputState(TypedDict):
+    workbook: Workbook
+    generation_plan: list[WorkbookSection]
+
+
+class OutputState(TypedDict):
+    final_doc: str
 
 
 def merge_dicts(a: dict, b: dict) -> dict:
-    return {**a, **b}
+    return a | b
 
 
-class State(TypedDict):
-    workbook: Workbook
-    generation_plan: list[WorkbookSection]
-    generated_summaries: Annotated[dict[str, str], merge_dicts]
+class OverallState(InputState, OutputState):
+    # Generated summaries is an internal field not exposed in either input or output
+    generated_summaries: Annotated[
+        dict[WorkbookSection, str],
+        merge_dicts,
+    ]
 
 
 class SectionSummarizerState(TypedDict):
-    workbook: Workbook
-    section_id: WorkbookSection
-
-
-class StateUpdate(TypedDict, total=False):
-    generated_summaries: dict[WorkbookSection, str]
+    section: WorkbookSection
+    section_data: dict[str, Any]

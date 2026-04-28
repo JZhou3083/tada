@@ -42,3 +42,11 @@ WorkbookOpt = Annotated[
         readable=True,
     ),
 ]
+
+DebugOpt = Annotated[
+    bool,
+    typer.Option(
+        "--debug",
+        help="Enable debug mode: print logs to the terminal and save logs and intermediate JSON to .tada_debug/.",
+    ),
+]
