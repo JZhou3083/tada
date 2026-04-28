@@ -16,6 +16,22 @@ def _default_debug_dir() -> Path:
     return _DEBUG_ROOT / timestamp
 
 
+class TaDALogFilter(logging.Filter):
+    """Allow full verbosity for TaDA logs while throttling third-party noise.
+
+    This filter passes all records from loggers under the ``tada`` namespace
+    (any level, including DEBUG). For all other loggers, it only allows
+    WARNING and above to reduce verbose output from dependencies.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        # TaDA logs: allow everything (DEBUG+)
+        if record.name.startswith("tada"):
+            return True
+        # Logs from other libraries: WARNING+
+        return record.levelno >= logging.WARNING
+
+
 class CLIConfig(BaseModel):
     model_config = ConfigDict(
         frozen=False  # mutable - debug is set after init in callback / commands
@@ -47,6 +63,7 @@ class CLIConfig(BaseModel):
             tracebacks_show_locals=self.debug,
         )
         console_handler.setLevel(logging.DEBUG if self.debug else logging.WARNING)
+        console_handler.addFilter(TaDALogFilter())
         handlers.append(console_handler)
 
         # File handler - only in debug mode, full verbosity
@@ -59,6 +76,7 @@ class CLIConfig(BaseModel):
                     "%(asctime)s  %(name)-40s  %(levelname)-8s  %(message)s"
                 )
             )
+            file_handler.addFilter(TaDALogFilter())
             handlers.append(file_handler)
 
         logging.basicConfig(
@@ -66,15 +84,6 @@ class CLIConfig(BaseModel):
             handlers=handlers,
             force=True,  # override any library config that ran before this
         )
-
-        # Always silenced regardless of debug mode
-        for always_noisy in ("asyncio",):
-            logging.getLogger(always_noisy).setLevel(logging.WARNING)
-
-        # Silenced in normal mode, verbose in debug
-        if not self.debug:
-            for noisy in ("httpx", "httpcore", "langgraph", "langchain"):
-                logging.getLogger(noisy).setLevel(logging.WARNING)
 
 
 cli_config = CLIConfig()
