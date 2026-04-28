@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
-from enum import Enum
+from enum import StrEnum
+from functools import lru_cache
+from importlib import resources
 from pathlib import Path
 from typing import Any, Self
 
@@ -19,8 +21,20 @@ from tada.tableau.extractors import (
 from tada.tableau.loader import load_workbook_xml
 from tada.tableau.xml.prune import drop_xpaths
 
+SECTIONS_PKG = "tada.prompts.sections"
 
-class WorkbookSection(str, Enum):
+
+@lru_cache(maxsize=None)
+def load_section_summarization_prompts(section: WorkbookSection) -> tuple[str, str]:
+    root = resources.files(SECTIONS_PKG)
+    prompt = (root / f"{section.value}.prompt.md").read_text(encoding="utf-8")
+    response_template = (root / f"{section.value}.response_template.md").read_text(
+        encoding="utf-8"
+    )
+    return prompt, response_template
+
+
+class WorkbookSection(StrEnum):
     DATASOURCES = "datasources"
     CALCULATIONS = "calculations"
     DASHBOARDS = "dashboards"
@@ -32,6 +46,9 @@ class WorkbookSection(str, Enum):
     def fetch_from(self, workbook: Workbook) -> Any:
         """Return the corresponding attribute from a Workbook object."""
         return getattr(workbook, self.value)
+
+    def load_summarization_prompts(self) -> tuple[str, str]:
+        return load_section_summarization_prompts(self)
 
 
 class Workbook(BaseModel):
