@@ -6,6 +6,7 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import Send
 
+from tada.domain.workbook import Workbook, WorkbookSection
 from tada.graph.nodes import compile_summaries, generate_section_summary
 from tada.graph.state import InputState, OutputState, OverallState
 
@@ -17,14 +18,24 @@ class NodeId(StrEnum):
     COMPILE_SUMMARIES = "compile_summaries"
 
 
-def route_plan_to_workers(state: InputState) -> list[Send]:
+def _get_section_summarizer_payload(section: WorkbookSection, workbook: Workbook):
+    prompt, response_template = section.load_summarization_prompts()
+    return {
+        "section": section,
+        "data": section.fetch_from(workbook),
+        "prompt": prompt,
+        "response_template": response_template,
+    }
+
+
+def route_plan_to_summarizers(state: InputState) -> list[Send]:
     if not state["generation_plan"]:
         raise ValueError("generation_plan must contain at least one WorkbookSection")
 
     return [
         Send(
             NodeId.SUMMARIZE_SECTION,
-            {"section": section, "section_data": section.fetch_from(state["workbook"])},
+            _get_section_summarizer_payload(section, state["workbook"]),
         )
         for section in state["generation_plan"]
     ]
@@ -53,7 +64,7 @@ def build_documentation_workflow(
     builder.add_node(NodeId.COMPILE_SUMMARIES, compile_summaries)
 
     builder.add_conditional_edges(
-        START, route_plan_to_workers, [NodeId.SUMMARIZE_SECTION]
+        START, route_plan_to_summarizers, [NodeId.SUMMARIZE_SECTION]
     )
     builder.add_edge(NodeId.SUMMARIZE_SECTION, NodeId.COMPILE_SUMMARIES)
     builder.add_edge(NodeId.COMPILE_SUMMARIES, END)

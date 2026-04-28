@@ -1,4 +1,5 @@
 import logging
+import time
 from typing import TypedDict
 
 from tada.domain.workbook import WorkbookSection
@@ -15,14 +16,10 @@ def generate_section_summary(
     state: SectionSummarizerState,
 ) -> SectionSummaryUpdate:
     # TODO: retrieve template based on section and run generation
-    summary = str(len(state["section_data"]))
-    logger.debug(
-        "Generated summary for section %r (%d chars)",
-        state["section"].value,
-        len(summary),
-    )
 
-    return {"generated_summaries": {state["section"]: summary}}
+    time.sleep(1)
+
+    return {"generated_summaries": {state["section"]: state["prompt"][:100]}}
 
 
 def compile_summaries(state: OverallState) -> OutputState:

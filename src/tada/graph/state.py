@@ -26,4 +26,6 @@ class OverallState(InputState, OutputState):
 
 class SectionSummarizerState(TypedDict):
     section: WorkbookSection
-    section_data: dict[str, Any]
+    data: dict[str, Any]
+    prompt: str
+    response_template: str
