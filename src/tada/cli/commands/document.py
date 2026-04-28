@@ -8,7 +8,7 @@ from questionary import Choice
 from tada.cli.commands._base import AppCommand
 from tada.cli.config import cli_config
 from tada.cli.display import console, print_debug_notice, print_tada_banner
-from tada.cli.input import ask_workbook_file
+from tada.cli.input import ask_file_type
 from tada.cli.options import DebugOpt, OutputOpt, WorkbookOpt
 from tada.domain.workbook import Workbook, WorkbookSection
 from tada.graph.state import InputState
@@ -27,8 +27,31 @@ def run_document(
     # Prompt users to select a workbook if one wasn't provided as a CLI argument
     if not workbook_path:
         try:
-            workbook_path = ask_workbook_file(
-                "Enter the path to your Tableau workbook (.twb or .twbx)"
+            workbook_path = ask_file_type(
+                "Enter the path to your Tableau workbook (.twb or .twbx)",
+                exists=True,
+                suffixes=(".twb", ".twbx"),
+            )
+        except KeyboardInterrupt:
+            console.print("[yellow]Cancelled.")
+            raise typer.Exit(code=0)
+
+    choices = [Choice(title=s.value, value=s) for s in list(WorkbookSection)]
+    try:
+        selected_sections = questionary.checkbox(
+            "Select sections to document",
+            choices,
+        ).unsafe_ask()
+    except KeyboardInterrupt:
+        console.print("[yellow]Cancelled.")
+        raise typer.Exit(code=0)
+
+    if not output_path:
+        try:
+            output_path = ask_file_type(
+                "Enter the path to save generated documentation to after completion (.md)",
+                exists=False,
+                suffixes=".md",
             )
         except KeyboardInterrupt:
             console.print("[yellow]Cancelled.")
@@ -43,16 +66,6 @@ def run_document(
     if cli_config.debug:
         workbook.write_debug(cli_config.debug_dir)
         logger.debug("Wrote parsed workbook contents to %s", cli_config.debug_dir)
-
-    choices = [Choice(title=s.value, value=s) for s in list(WorkbookSection)]
-    try:
-        selected_sections = questionary.checkbox(
-            "Select sections to document",
-            choices,
-        ).unsafe_ask()
-    except KeyboardInterrupt:
-        console.print("[yellow]Cancelled.")
-        raise typer.Exit(code=0)
 
     with console.status("Generating documentation...", spinner="dots"):
         workflow = build_documentation_workflow()
