@@ -1,32 +1,56 @@
+from __future__ import annotations
+
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Callable, Sequence
 
 import typer
 
 
-def validate_workbook_option(value: Path | None) -> Path | None:
+def make_suffix_validator(
+    allowed: Sequence[str] | str,
+    *,
+    param_hint: str,
+) -> Callable[[Path | None], Path | None]:
     """
-    Validate that an optional file path refers to a Tableau workbook (.twb or .twbx).
-
-    This function is intended for use as a Typer option callback. If a path
-    is provided and does not have a ``.twb`` or ```.twbx``` suffix, a
-    ``typer.BadParameter`` error is raised to signal invalid CLI input.
+    Create a Typer option callback that validates a Path's file suffix.
 
     Args:
-        value: Optional path supplied via the ``--file`` option.
+        allowed: Allowed suffix(es), e.g. ".md" or (".twb", ".twbx").
+        param_hint: Passed to typer.BadParameter to show which option failed.
 
     Returns:
-        The original path if valid, or ``None`` if no path was provided.
-
-    Raises:
-        typer.BadParameter: If the path does not point to a ``.twb`` or ```.twbx``` file.
+        A callback(value) that returns the Path (or None) or raises BadParameter.
     """
-    if value and value.suffix not in (".twb", ".twbx"):
-        raise typer.BadParameter(
-            f"File '{value.name}' is not a Tableau workbook ('.twb' or '.twbx')",
-            param_hint="--workbook",
-        )
-    return value
+    if isinstance(allowed, str):
+        allowed_suffixes = (allowed,)
+    else:
+        allowed_suffixes = tuple(allowed)
+
+    display = ", ".join(repr(s) for s in allowed_suffixes)
+
+    def callback(value: Path | None) -> Path | None:
+        if value is None:
+            return None
+
+        if value.suffix not in allowed_suffixes:
+            raise typer.BadParameter(
+                f"File '{value.name}' must have extension {display}",
+                param_hint=param_hint,
+            )
+        return value
+
+    return callback
+
+
+validate_workbook_option = make_suffix_validator(
+    (".twb", ".twbx"),
+    param_hint="--workbook",
+)
+
+validate_markdown_option = make_suffix_validator(
+    ".md",
+    param_hint="--output",
+)
 
 
 WorkbookOpt = Annotated[
@@ -40,6 +64,21 @@ WorkbookOpt = Annotated[
         file_okay=True,
         dir_okay=False,
         readable=True,
+    ),
+]
+
+
+OutputOpt = Annotated[
+    Path | None,
+    typer.Option(
+        "--output",
+        "-o",
+        callback=validate_markdown_option,
+        help="Path to save final markdown docs. If omitted, you will be prompted to select one.",
+        exists=False,
+        file_okay=True,
+        dir_okay=False,
+        writable=True,
     ),
 ]
 

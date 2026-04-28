@@ -9,7 +9,7 @@ from tada.cli.commands._base import AppCommand
 from tada.cli.config import cli_config
 from tada.cli.display import console, print_debug_notice, print_tada_banner
 from tada.cli.input import ask_workbook_file
-from tada.cli.options import DebugOpt, WorkbookOpt
+from tada.cli.options import DebugOpt, OutputOpt, WorkbookOpt
 from tada.domain.workbook import Workbook, WorkbookSection
 from tada.graph.state import InputState
 from tada.graph.workflow import build_documentation_workflow
@@ -17,7 +17,9 @@ from tada.graph.workflow import build_documentation_workflow
 logger = logging.getLogger(__name__)
 
 
-def run_document(workbook_path: WorkbookOpt = None) -> None:
+def run_document(
+    workbook_path: WorkbookOpt = None, output_path: OutputOpt = None
+) -> None:
     """
     Generate documentation for a Tableau workbook.
     If no workbook is provided via the CLI, the user is prompted to select one.
@@ -73,7 +75,11 @@ def run_document(workbook_path: WorkbookOpt = None) -> None:
     console.print("[green]✔[/green] Documentation exported → ???")
 
 
-def _cmd_document(workbook_path: WorkbookOpt = None, debug: DebugOpt = False) -> None:
+def _cmd_document(
+    workbook_path: WorkbookOpt = None,
+    output_path: OutputOpt = None,
+    debug: DebugOpt = False,
+) -> None:
     cli_config.apply_debug(debug)
     cli_config.configure_logging(console)
     print_tada_banner(
