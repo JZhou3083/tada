@@ -1,7 +1,7 @@
 import logging
 from typing import TypedDict
 
-from tada.domain.workbook_sections import WorkbookSection
+from tada.domain.workbook import WorkbookSection
 from tada.graph.state import OutputState, OverallState, SectionSummarizerState
 
 logger = logging.getLogger(__name__)

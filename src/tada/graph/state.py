@@ -1,6 +1,6 @@
 from typing import Annotated, Any, TypedDict
 
-from tada.domain.workbook_sections import Workbook, WorkbookSection
+from tada.domain.workbook import Workbook, WorkbookSection
 
 
 class InputState(TypedDict):
