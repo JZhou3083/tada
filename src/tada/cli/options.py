@@ -5,6 +5,8 @@ from typing import Annotated, Callable, Sequence
 
 import typer
 
+from tada.domain.workbook import WorkbookSection
+
 
 def make_suffix_validator(
     allowed: Sequence[str] | str,
@@ -59,7 +61,10 @@ WorkbookOpt = Annotated[
         "--workbook",
         "-w",
         callback=validate_workbook_option,
-        help="Path to a Tableau workbook. If omitted, you will be prompted to select one.",
+        help=(
+            "Path to the Tableau workbook to document. If omitted, you will be "
+            "prompted to choose an existing workbook file."
+        ),
         exists=True,
         file_okay=True,
         dir_okay=False,
@@ -74,7 +79,10 @@ OutputOpt = Annotated[
         "--output",
         "-o",
         callback=validate_markdown_option,
-        help="Path to save final markdown docs. If omitted, you will be prompted to select one.",
+        help=(
+            "Path for the output Markdown file. If omitted, you will be prompted to "
+            "enter a new file path."
+        ),
         exists=False,
         file_okay=True,
         dir_okay=False,
@@ -82,10 +90,34 @@ OutputOpt = Annotated[
     ),
 ]
 
+SectionOpt = Annotated[
+    list[WorkbookSection] | None,
+    typer.Option(
+        "--section",
+        "-s",
+        help=(
+            "Section to include in the documentation. Repeat this option to include "
+            "multiple sections."
+        ),
+    ),
+]
+
+AllSectionsOpt = Annotated[
+    bool,
+    typer.Option(
+        "--all-sections",
+        help="Include all sections in the generated documentation.",
+    ),
+]
+
+
 DebugOpt = Annotated[
     bool,
     typer.Option(
         "--debug",
-        help="Enable debug mode: print logs to the terminal and save logs and intermediate JSON to .tada_debug/.",
+        help=(
+            "Enable debug output in the terminal and save logs and intermediate JSON "
+            "files to .tada_debug/."
+        ),
     ),
 ]
