@@ -1,5 +1,4 @@
 import logging
-from pathlib import Path
 
 import questionary
 import typer
@@ -8,7 +7,7 @@ from questionary import Choice
 from tada.cli.commands._base import AppCommand
 from tada.cli.config import cli_config
 from tada.cli.display import console, print_debug_notice, print_tada_banner
-from tada.cli.input import ask_file_type
+from tada.cli.input import ask_for_file_path
 from tada.cli.options import DebugOpt, OutputOpt, WorkbookOpt
 from tada.domain.workbook import Workbook, WorkbookSection
 from tada.graph.state import InputState
@@ -27,9 +26,9 @@ def run_document(
     # Prompt users to select a workbook if one wasn't provided as a CLI argument
     if not workbook_path:
         try:
-            workbook_path = ask_file_type(
+            workbook_path = ask_for_file_path(
                 "Enter the path to your Tableau workbook (.twb or .twbx)",
-                exists=True,
+                must_exist=True,
                 suffixes=(".twb", ".twbx"),
             )
         except KeyboardInterrupt:
@@ -48,9 +47,9 @@ def run_document(
 
     if not output_path:
         try:
-            output_path = ask_file_type(
+            output_path = ask_for_file_path(
                 "Enter the path to save generated documentation to after completion (.md)",
-                exists=False,
+                must_exist=False,
                 suffixes=".md",
             )
         except KeyboardInterrupt:
@@ -82,10 +81,9 @@ def run_document(
 
     console.print("[green]✔[/green] Generated response")
 
-    # TODO: determine actual export logic - current fallback sends to output.md
-    output_file = Path("output.md")
-    output_file.write_text(result["final_doc"])
-    console.print("[green]✔[/green] Documentation exported → ???")
+    output_path.write_text(result["final_doc"])
+
+    console.print(f"[green]✔[/green] Documentation exported → {output_path.name}")
 
 
 def _cmd_document(
