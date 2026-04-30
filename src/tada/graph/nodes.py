@@ -1,11 +1,9 @@
 import json
 import logging
 import time
-from importlib import resources
 from typing import TypedDict
 
-from google.genai import Client, types
-
+from tada.clients.genai import get_genai_client, get_section_summary_generation_config
 from tada.domain.workbook import WorkbookSection
 from tada.graph.state import OutputState, OverallState, SectionSummarizerState
 
@@ -16,33 +14,13 @@ class SectionSummaryUpdate(TypedDict):
     generated_summaries: dict[WorkbookSection, str]
 
 
+# TODO: section summary needs to be a refinement loop with feedback instructions
 def generate_section_summary(
     state: SectionSummarizerState,
 ) -> SectionSummaryUpdate:
 
     logger.debug("Beginning summary generation for %s", state["section"].value)
     start = time.perf_counter()
-
-    client = Client(
-        vertexai=True,
-        project="jlr-dl-cat",
-        location="global",
-    )
-
-    sys_instruction = (resources.files("tada") / "prompts" / "system.md").read_text(
-        encoding="utf-8"
-    )
-    config = types.GenerateContentConfig(
-        system_instruction=sys_instruction,
-        temperature=0.2,
-        top_p=0.2,
-        seed=101,
-        candidate_count=1,
-        thinking_config=types.ThinkingConfig(
-            include_thoughts=False, thinking_level=types.ThinkingLevel.LOW
-        ),
-        automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
-    )
 
     parts = [
         {"text": state["prompt"]},
@@ -51,10 +29,10 @@ def generate_section_summary(
     ]
     payload = [{"role": "user", "parts": parts}]
 
-    response = client.models.generate_content(
+    response = get_genai_client().models.generate_content(
         model="gemini-3-flash-preview",
         contents=payload,
-        config=config,
+        config=get_section_summary_generation_config(),
     )
     response_text = str(response.text)
 
