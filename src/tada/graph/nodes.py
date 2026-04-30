@@ -1,9 +1,14 @@
 import json
 import logging
 import time
+from importlib import resources
 from typing import TypedDict
 
-from tada.clients.genai import get_genai_client, get_section_summary_generation_config
+from tada.clients.genai import (
+    get_compiled_doc_generation_config,
+    get_genai_client,
+    get_section_summary_generation_config,
+)
 from tada.domain.workbook import WorkbookSection
 from tada.graph.state import OutputState, OverallState, SectionSummarizerState
 
@@ -65,14 +70,40 @@ def generate_section_summary(
 
 def compile_summaries(state: OverallState) -> OutputState:
     summaries = state["generated_summaries"]
-    logger.debug("Compiling all %d summaries...", len(summaries))
 
-    ordered = [(s, summaries[s]) for s in state["generation_plan"] if s in summaries]
+    logger.debug("Compiling %d section summaries...", len(summaries))
 
-    formatted_sections = [
-        f"# {section.value}\n{summary}" for section, summary in ordered
+    ordered_summaries = [
+        summaries[s]
+        for s in [
+            WorkbookSection.DASHBOARDS,
+            WorkbookSection.WORKSHEETS,
+            WorkbookSection.ACTIONS,
+            WorkbookSection.PARAMETERS,
+            WorkbookSection.DATASOURCES,
+            WorkbookSection.TABLES,
+            WorkbookSection.CALCULATIONS,
+        ]
+        if s in summaries
     ]
-    compiled_doc = "\n\n".join(formatted_sections)
 
-    logger.debug("Compiled %d summaries", len(summaries))
-    return {"final_doc": compiled_doc}
+    compiled_doc = "\\pagebreak\n\n".join(ordered_summaries)
+
+    summariser_prompt = (
+        resources.files("tada") / "prompts" / "summariser.md"
+    ).read_text(encoding="utf-8")
+
+    parts = [
+        {"text": summariser_prompt},
+        {"text": compiled_doc},
+    ]
+    payload = [{"role": "user", "parts": parts}]
+
+    response = get_genai_client().models.generate_content(
+        model="gemini-3-flash-preview",
+        contents=payload,
+        config=get_compiled_doc_generation_config(),
+    )
+
+    response_text = str(response.text)
+    return {"final_doc": response_text}
