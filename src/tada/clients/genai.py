@@ -14,6 +14,21 @@ def get_genai_client():
     )
 
 
+def generate_text(
+    *,
+    model: str,
+    contents: types.ContentListUnionDict,
+    config: types.GenerateContentConfigOrDict | None = None,
+):
+    response = get_genai_client().models.generate_content(
+        model=model,
+        contents=contents,
+        config=config,
+    )
+    # TODO: add a guard for no text response
+    return response, str(response.text)
+
+
 def get_section_summary_generation_config() -> types.GenerateContentConfig:
     sys_instruction = (resources.files("tada") / "prompts" / "system.md").read_text(
         encoding="utf-8"

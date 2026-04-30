@@ -5,8 +5,8 @@ from importlib import resources
 from typing import TypedDict
 
 from tada.clients.genai import (
+    generate_text,
     get_compiled_doc_generation_config,
-    get_genai_client,
     get_section_summary_generation_config,
     log_genai_usage,
 )
@@ -35,16 +35,14 @@ def generate_section_summary(
     payload = [{"role": "user", "parts": parts}]
 
     start = time.perf_counter()
-
-    response = get_genai_client().models.generate_content(
+    response, response_text = generate_text(
         model="gemini-3-flash-preview",
         contents=payload,
         config=get_section_summary_generation_config(),
     )
-    response_text = str(response.text)
-
     end = time.perf_counter()
     elapsed = end - start
+
     log_genai_usage(
         logger,
         response,
@@ -57,21 +55,23 @@ def generate_section_summary(
     return {"section_summaries": {state["section"]: response_text}}
 
 
+# Section order is somewhat arbitrary but intended to produce a compiled document
+# to be passed to the LLM which gives an initial overview via dashboards and then goes
+# increasingly into the details with tables and calculations coming later.
+SECTION_ORDER = [
+    WorkbookSection.DASHBOARDS,
+    WorkbookSection.WORKSHEETS,
+    WorkbookSection.ACTIONS,
+    WorkbookSection.PARAMETERS,
+    WorkbookSection.DATASOURCES,
+    WorkbookSection.TABLES,
+    WorkbookSection.CALCULATIONS,
+]
+
+
 def compile_summaries(state: OverallState) -> OutputState:
     summaries = state["section_summaries"]
-    ordered_summaries = [
-        summaries[s]
-        for s in [
-            WorkbookSection.DASHBOARDS,
-            WorkbookSection.WORKSHEETS,
-            WorkbookSection.ACTIONS,
-            WorkbookSection.PARAMETERS,
-            WorkbookSection.DATASOURCES,
-            WorkbookSection.TABLES,
-            WorkbookSection.CALCULATIONS,
-        ]
-        if s in summaries
-    ]
+    ordered_summaries = [summaries[s] for s in SECTION_ORDER if s in summaries]
     compiled_doc = "\\pagebreak\n\n".join(ordered_summaries)
 
     logger.debug(
@@ -91,16 +91,14 @@ def compile_summaries(state: OverallState) -> OutputState:
     payload = [{"role": "user", "parts": parts}]
 
     start = time.perf_counter()
-
-    response = get_genai_client().models.generate_content(
+    response, response_text = generate_text(
         model="gemini-3-flash-preview",
         contents=payload,
         config=get_compiled_doc_generation_config(),
     )
-    response_text = str(response.text)
-
     end = time.perf_counter()
     elapsed = end - start
+
     log_genai_usage(
         logger,
         response,
