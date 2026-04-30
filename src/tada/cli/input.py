@@ -108,6 +108,7 @@ def build_file_path_completer(
 def ask_for_file_path(
     prompt: str,
     *,
+    default: str = "",
     must_exist: bool,
     suffixes: str | Sequence[str],
 ) -> Path:
@@ -130,6 +131,7 @@ def ask_for_file_path(
     allowed_suffixes = _normalise_suffixes(suffixes)
     file_path = questionary.path(
         prompt,
+        default=default,
         completer=build_file_path_completer(must_exist, allowed_suffixes),
         validate=build_file_path_validator(must_exist, allowed_suffixes),
     ).unsafe_ask()

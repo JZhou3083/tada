@@ -53,7 +53,7 @@ def _resolve_workbook_arg(workbook_path: WorkbookOpt | None) -> Path:
         raise typer.Exit(code=0)
 
 
-def _resolve_output_arg(output_path: OutputOpt | None) -> Path:
+def _resolve_output_arg(output_path: OutputOpt | None, workbook_path: Path) -> Path:
     """Resolve the output path from CLI input or an interactive prompt.
 
     If an output path was provided on the command line, it is returned as-is.
@@ -75,8 +75,11 @@ def _resolve_output_arg(output_path: OutputOpt | None) -> Path:
     try:
         return ask_for_file_path(
             "Enter the path to save generated documentation to after completion (.md)",
+            default=workbook_path.with_suffix(
+                ".md"
+            ).name,  # or str? which is appropriate
             must_exist=False,
-            suffixes=".md",
+            suffixes=(".md"),
         )
     except KeyboardInterrupt:
         console.print("[yellow]Cancelled.")
@@ -144,7 +147,7 @@ def run_document(
         all_sections: Whether to document all available workbook sections.
     """
     workbook_path = _resolve_workbook_arg(workbook_path)
-    output_path = _resolve_output_arg(output_path)
+    output_path = _resolve_output_arg(output_path, workbook_path)
     sections = _resolve_sections_arg(sections, all_sections)
 
     # Pre-process the workbook using our pre-existing XML -> JSON parsing approach
