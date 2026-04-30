@@ -17,8 +17,8 @@ def merge_dicts(a: dict, b: dict) -> dict:
 
 
 class OverallState(InputState, OutputState):
-    # Generated summaries is an internal field not exposed in either input or output
-    generated_summaries: Annotated[
+    # section_summaries is an internal field not exposed in either input or output
+    section_summaries: Annotated[
         dict[WorkbookSection, str],
         merge_dicts,
     ]

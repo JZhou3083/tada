@@ -1,3 +1,4 @@
+import logging
 from functools import lru_cache
 from importlib import resources
 
@@ -40,4 +41,34 @@ def get_compiled_doc_generation_config() -> types.GenerateContentConfig:
             include_thoughts=False, thinking_level=types.ThinkingLevel.LOW
         ),
         automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
+    )
+
+
+def log_genai_usage(
+    logger: logging.Logger,
+    response: types.GenerateContentResponse,
+    *,
+    step: str,
+    elapsed: float,
+    section: str | None = None,
+    model: str | None = None,
+):
+    um = getattr(response, "usage_metadata", None)
+    text = getattr(response, "text", "") or ""
+    chars = len(str(text))
+
+    um = getattr(response, "usage_metadata", None)
+    logger.debug(
+        "Generation completed step=%s section=%s model=%s duration=%.3fs chars=%d "
+        "tokens_total=%s tokens_prompt=%s tokens_output=%s tokens_cached=%s cache_hit=%s",
+        step,
+        section or "-",
+        model or "-",
+        elapsed,
+        chars,
+        getattr(um, "total_token_count", None),
+        getattr(um, "prompt_token_count", None),
+        getattr(um, "candidates_token_count", None),
+        getattr(um, "cached_content_token_count", None),
+        bool(getattr(um, "cached_content_token_count", 0) or 0),
     )
