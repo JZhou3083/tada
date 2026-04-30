@@ -116,6 +116,7 @@ def _resolve_sections_arg(
         return questionary.checkbox(
             "Select sections to document",
             choices,
+            validate=lambda a: len(a) > 0,  # Users must select at least one section
         ).unsafe_ask()
     except KeyboardInterrupt:
         console.print("[yellow]Cancelled.")
