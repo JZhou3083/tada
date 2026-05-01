@@ -1,3 +1,4 @@
+import operator
 from typing import Annotated, Any, NotRequired, TypedDict
 
 from tada.domain.workbook import Workbook, WorkbookSection
@@ -31,5 +32,5 @@ class SectionDocumenterState(TypedDict):
     prompt: str
     response_template: str
     generated_docs: NotRequired[str]
-    evaluation: NotRequired[EvalResult]
+    evaluation_history: Annotated[list[EvalResult], operator.add]
     attempts: int

@@ -22,6 +22,8 @@ from tada.graph.state import (
 
 logger = logging.getLogger(__name__)
 
+MAX_SECTION_ATTEMPTS = 2
+
 
 class NodeId(StrEnum):
     DOCUMENT_SECTION = "document_section"
@@ -31,27 +33,37 @@ class NodeId(StrEnum):
 
 
 def route_evaluation_results(state: SectionDocumenterState) -> NodeId:
-    evaluation = state.get("evaluation")
-
-    if evaluation is None:
+    if "evaluation_history" not in state:
         raise ValueError("No evaluation to route")
 
-    if evaluation.passed:
+    latest_eval = state["evaluation_history"][-1]
+
+    if latest_eval.passed:
         logger.debug(
-            "Emitting documentation for %s non_blocking_issues=%d",
+            "Emitting documentation for %s attempt=%d non_blocking_issues=%d",
             state["section"].value,
-            len(evaluation.non_blocking_issues),
+            state["attempts"],
+            len(latest_eval.non_blocking_issues),
+        )
+        return NodeId.EMIT_SECTION_DOCS
+    elif state["attempts"] > MAX_SECTION_ATTEMPTS:
+        logger.debug(
+            "Hit maximum attempts for %s attempt=%d blocking_issues=%d non_blocking_issues=%d",
+            state["section"].value,
+            state["attempts"],
+            len(latest_eval.blocking_issues),
+            len(latest_eval.non_blocking_issues),
         )
         return NodeId.EMIT_SECTION_DOCS
 
-    # TODO: should instead refine but for simplicity here completes
     logger.debug(
-        "Retrying documentation for %s blocking_issues=%d non_blocking_issues=%d",
+        "Retrying documentation for %s attempt=%d blocking_issues=%d non_blocking_issues=%d",
         state["section"].value,
-        len(evaluation.blocking_issues),
-        len(evaluation.non_blocking_issues),
+        state["attempts"],
+        len(latest_eval.blocking_issues),
+        len(latest_eval.non_blocking_issues),
     )
-    return NodeId.EMIT_SECTION_DOCS
+    return NodeId.DOCUMENT_SECTION
 
 
 def _get_section_summarizer_payload(section: WorkbookSection, workbook: Workbook):
@@ -61,6 +73,7 @@ def _get_section_summarizer_payload(section: WorkbookSection, workbook: Workbook
         "data": section.fetch_from(workbook),
         "prompt": prompt,
         "response_template": response_template,
+        "attempts": 0,
     }
 
 
@@ -105,11 +118,10 @@ def build_documentation_workflow(
         START, route_plan_to_summarizers, [NodeId.DOCUMENT_SECTION]
     )
     builder.add_edge(NodeId.DOCUMENT_SECTION, NodeId.EVALUATE_SECTION_DOCS)
-    # TODO: add-in option for actual re-gen
     builder.add_conditional_edges(
         NodeId.EVALUATE_SECTION_DOCS,
         route_evaluation_results,
-        [NodeId.EMIT_SECTION_DOCS],
+        [NodeId.EMIT_SECTION_DOCS, NodeId.DOCUMENT_SECTION],
     )
     builder.add_edge(NodeId.EMIT_SECTION_DOCS, NodeId.COMPILE_SUMMARIES)
     builder.add_edge(NodeId.COMPILE_SUMMARIES, END)

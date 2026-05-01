@@ -14,14 +14,62 @@ from tada.llm.telemetry import log_genai_usage
 logger = logging.getLogger(__name__)
 
 
-# TODO: rename things from summary to documentation
+def _add_feedback_to_prompt(prompt: str, feedback: list[EvalResult]) -> str:
+    feedback_history = [s.feedback_for_generator for s in feedback if not s.passed]
+    if not feedback_history:
+        return prompt
+
+    if len(feedback_history) == 1:
+        return (
+            prompt
+            + f"""### CRITICAL FEEDBACK (MUST FIX):
+            The Quality Assurance team flagged the following errors in your previous attempt.
+            You must ensure these are corrected in this new version:
+            ---------------------------------------------------------
+            {feedback_history[0]}
+            (e.g., "You missed the calculated field 'Profit Ratio'. You hallucinated a 'Left Join'.")
+            ---------------------------------------------------------
+        """
+        )
+
+    latest_feedback = feedback_history[-1]
+    older_feedback = "\n".join(f"- {fb}" for fb in feedback_history[:-1])
+
+    return (
+        prompt
+        + f"""## CRITICAL FEEDBACK (MUST FIX):
+                The Quality Assurance team identified issues in your previous attempts.
+                Below is the full feedback history. Some of these items were already corrected in earlier revisions, but they are included here to ensure no issue reappears.
+                ---------------------------------------------------------
+                Most Recent Feedback (Must Fix NOW):
+                {latest_feedback}
+                ---------------------------------------------------------
+                Past Feedback (Older Attempts):
+                {older_feedback}
+                ---------------------------------------------------------
+                You must ensure:
+                1. All items in the most recent feedback are fully corrected.
+                2. No issues from past feedback reappear in this version.
+            """
+    )
+
+
 def generate_section_documentation(
     state: SectionDocumenterState,
 ) -> dict[str, Any]:
-    logger.debug("Beginning documentation generation for %s", state["section"].value)
+    logger.debug(
+        "Beginning documentation generation for %s attempt=%d",
+        state["section"].value,
+        state["attempts"] + 1,
+    )
+
+    full_prompt = state["prompt"]
+
+    if "evaluation_history" in state:
+        full_prompt = _add_feedback_to_prompt(full_prompt, state["evaluation_history"])
 
     parts = [
-        {"text": state["prompt"]},
+        {"text": full_prompt},
         {"text": state["response_template"]},
         {"text": json.dumps(state["data"])},
     ]
@@ -49,7 +97,22 @@ def generate_section_documentation(
         model="gemini-3-flash-preview",
     )
 
-    return {"generated_docs": section_docs}
+    # Include all necessary state variables in update since the Send payload is
+    # otherwise not persisted.
+    if state["attempts"] == 0:
+        return {
+            "section": state["section"],
+            "data": state["data"],
+            "prompt": state["prompt"],
+            "response_template": state["response_template"],
+            "generated_docs": section_docs,
+            "attempts": state["attempts"] + 1,
+        }
+
+    return {
+        "generated_docs": section_docs,
+        "attempts": state["attempts"] + 1,
+    }
 
 
 def evaluate_section_documentation(state: SectionDocumenterState) -> dict[str, Any]:
@@ -90,7 +153,7 @@ def evaluate_section_documentation(state: SectionDocumenterState) -> dict[str, A
         model="gemini-3-flash-preview",
     )
 
-    return {"evaluation": evaluation}
+    return {"evaluation_history": [evaluation]}
 
 
 def emit_section_documentation(state: SectionDocumenterState) -> dict[str, Any]:
