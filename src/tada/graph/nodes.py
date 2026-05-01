@@ -2,43 +2,41 @@ import json
 import logging
 import time
 from importlib import resources
-from typing import TypedDict
+from typing import Any
 
-from tada.clients.genai import (
-    generate_text,
-    get_compiled_doc_generation_config,
-    get_section_summary_generation_config,
-    log_genai_usage,
-)
 from tada.domain.workbook import WorkbookSection
-from tada.graph.state import OutputState, OverallState, SectionSummarizerState
+from tada.graph.state import OutputState, OverallState, SectionDocumenterState
+from tada.llm.client import get_vertexai_gateway
+from tada.llm.configs import build_base_generation_config
+from tada.llm.schemas import EvalResult
+from tada.llm.telemetry import log_genai_usage
 
 logger = logging.getLogger(__name__)
 
 
-class SectionSummaryUpdate(TypedDict):
-    section_summaries: dict[WorkbookSection, str]
-
-
-# TODO: section summary needs to be a refinement loop with feedback instructions
-def generate_section_summary(
-    state: SectionSummarizerState,
-) -> SectionSummaryUpdate:
-
-    logger.debug("Beginning summary generation for %s", state["section"].value)
+# TODO: rename things from summary to documentation
+def generate_section_documentation(
+    state: SectionDocumenterState,
+) -> dict[str, Any]:
+    logger.debug("Beginning documentation generation for %s", state["section"].value)
 
     parts = [
         {"text": state["prompt"]},
         {"text": state["response_template"]},
         {"text": json.dumps(state["data"])},
     ]
-    payload = [{"role": "user", "parts": parts}]
+    contents = [{"role": "user", "parts": parts}]
+
+    client_wrapper = get_vertexai_gateway()
+    system_instruction = (resources.files("tada") / "prompts" / "system.md").read_text(
+        encoding="utf-8"
+    )
 
     start = time.perf_counter()
-    response, response_text = generate_text(
+    response, section_docs = client_wrapper.generate_text(
         model="gemini-3-flash-preview",
-        contents=payload,
-        config=get_section_summary_generation_config(),
+        contents=contents,
+        config=build_base_generation_config(system_instruction=system_instruction),
     )
     end = time.perf_counter()
     elapsed = end - start
@@ -46,13 +44,61 @@ def generate_section_summary(
     log_genai_usage(
         logger,
         response,
-        step="section",
+        label=f"{state['section'].value}:generate",
         elapsed=elapsed,
-        section=state["section"].value,
         model="gemini-3-flash-preview",
     )
 
-    return {"section_summaries": {state["section"]: response_text}}
+    return {"generated_docs": section_docs}
+
+
+def evaluate_section_documentation(state: SectionDocumenterState) -> dict[str, Any]:
+    logger.debug("Beginning evaluation for %s", state["section"].value)
+
+    if "generated_docs" not in state:
+        raise ValueError("No documentation exists in state to summarize")
+
+    evaluator_prompt = (
+        resources.files("tada") / "prompts" / "evaluation.md"
+    ).read_text(encoding="utf-8")
+
+    parts = [
+        {"text": evaluator_prompt},
+        {"text": json.dumps(state["data"])},
+        {"text": state["generated_docs"]},
+        {"text": state["response_template"]},
+    ]
+    contents = [{"role": "user", "parts": parts}]
+
+    client_wrapper = get_vertexai_gateway()
+
+    start = time.perf_counter()
+    response, evaluation = client_wrapper.generate_structured_response(
+        model="gemini-3-flash-preview",
+        contents=contents,
+        schema_model=EvalResult,
+        config=build_base_generation_config(),
+    )
+    end = time.perf_counter()
+    elapsed = end - start
+
+    log_genai_usage(
+        logger,
+        response,
+        label=f"{state['section'].value}:evaluate",
+        elapsed=elapsed,
+        model="gemini-3-flash-preview",
+    )
+
+    return {"evaluation": evaluation}
+
+
+def emit_section_documentation(state: SectionDocumenterState) -> dict[str, Any]:
+    """Format results of documentation into a state update to remerge back into the parent branch"""
+    if "generated_docs" not in state:
+        raise ValueError("No docs yet generated")
+
+    return {"section_docs": {state["section"]: state["generated_docs"]}}
 
 
 # Section order is somewhat arbitrary but intended to produce a compiled document
@@ -70,7 +116,7 @@ SECTION_ORDER = [
 
 
 def compile_summaries(state: OverallState) -> OutputState:
-    summaries = state["section_summaries"]
+    summaries = state["section_docs"]
     ordered_summaries = [summaries[s] for s in SECTION_ORDER if s in summaries]
     compiled_doc = "\\pagebreak\n\n".join(ordered_summaries)
 
@@ -88,13 +134,15 @@ def compile_summaries(state: OverallState) -> OutputState:
         {"text": summariser_prompt},
         {"text": compiled_doc},
     ]
-    payload = [{"role": "user", "parts": parts}]
+    contents = [{"role": "user", "parts": parts}]
+
+    client_wrapper = get_vertexai_gateway()
 
     start = time.perf_counter()
-    response, response_text = generate_text(
+    response, documentation_summary = client_wrapper.generate_text(
         model="gemini-3-flash-preview",
-        contents=payload,
-        config=get_compiled_doc_generation_config(),
+        contents=contents,
+        config=build_base_generation_config(),
     )
     end = time.perf_counter()
     elapsed = end - start
@@ -102,9 +150,10 @@ def compile_summaries(state: OverallState) -> OutputState:
     log_genai_usage(
         logger,
         response,
-        step="compile",
+        label="compile",
         elapsed=elapsed,
         model="gemini-3-flash-preview",
     )
 
-    return {"final_doc": response_text}
+    # TODO: final doc should actually also include each section not just the overall summary
+    return {"final_doc": documentation_summary}
