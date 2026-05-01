@@ -25,7 +25,7 @@ SECTIONS_PKG = "tada.prompts.sections"
 
 
 @lru_cache(maxsize=None)
-def load_section_summarization_prompts(section: WorkbookSection) -> tuple[str, str]:
+def load_section_documentation_prompts(section: WorkbookSection) -> tuple[str, str]:
     root = resources.files(SECTIONS_PKG)
     prompt = (root / f"{section.value}.prompt.md").read_text(encoding="utf-8")
     response_template = (root / f"{section.value}.response_template.md").read_text(
@@ -47,8 +47,8 @@ class WorkbookSection(StrEnum):
         """Return the corresponding attribute from a Workbook object."""
         return getattr(workbook, self.value)
 
-    def load_summarization_prompts(self) -> tuple[str, str]:
-        return load_section_summarization_prompts(self)
+    def load_documentation_prompts(self) -> tuple[str, str]:
+        return load_section_documentation_prompts(self)
 
 
 class Workbook(BaseModel):
@@ -80,7 +80,6 @@ class Workbook(BaseModel):
             ],
         )
 
-        # TODO: original code writes the clean XML at this point to a fresh file, needed?
         # TODO: next perform the PII scan
 
         datasources = extract_datasources(root)

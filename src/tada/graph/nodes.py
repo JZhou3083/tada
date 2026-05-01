@@ -119,7 +119,7 @@ def evaluate_section_documentation(state: SectionDocumenterState) -> dict[str, A
     logger.debug("Beginning evaluation for %s", state["section"].value)
 
     if "generated_docs" not in state:
-        raise ValueError("No documentation exists in state to summarize")
+        raise ValueError("No documentation exists in state to evaluate")
 
     evaluator_prompt = (
         resources.files("tada") / "prompts" / "evaluation.md"
@@ -164,28 +164,26 @@ def emit_section_documentation(state: SectionDocumenterState) -> dict[str, Any]:
     return {"section_docs": {state["section"]: state["generated_docs"]}}
 
 
-# Section order is somewhat arbitrary but intended to produce a compiled document
-# to be passed to the LLM which gives an initial overview via dashboards and then goes
-# increasingly into the details with tables and calculations coming later.
+# Section order is mirrored from doc-agent repo config.yaml
 SECTION_ORDER = [
+    WorkbookSection.DATASOURCES,
+    WorkbookSection.CALCULATIONS,
     WorkbookSection.DASHBOARDS,
     WorkbookSection.WORKSHEETS,
     WorkbookSection.ACTIONS,
     WorkbookSection.PARAMETERS,
-    WorkbookSection.DATASOURCES,
     WorkbookSection.TABLES,
-    WorkbookSection.CALCULATIONS,
 ]
 
 
-def compile_summaries(state: OverallState) -> OutputState:
-    summaries = state["section_docs"]
-    ordered_summaries = [summaries[s] for s in SECTION_ORDER if s in summaries]
-    compiled_doc = "\\pagebreak\n\n".join(ordered_summaries)
+def summarize_all_sections_documentation(state: OverallState) -> OutputState:
+    section_docs = state["section_docs"]
+    ordered_section_docs = [section_docs[s] for s in SECTION_ORDER if s in section_docs]
+    compiled_doc = "\\pagebreak\n\n".join(ordered_section_docs)
 
     logger.debug(
-        "Compiled %d section summaries into one document chars=%d",
-        len(summaries),
+        "Compiled %d section docs into one document chars=%d",
+        len(section_docs),
         len(compiled_doc),
     )
 
@@ -218,5 +216,6 @@ def compile_summaries(state: OverallState) -> OutputState:
         model="gemini-3-flash-preview",
     )
 
-    # TODO: final doc should actually also include each section not just the overall summary
-    return {"final_doc": documentation_summary}
+    final_doc_parts = [documentation_summary] + ordered_section_docs
+
+    return {"final_doc": "\n\n".join([p.rstrip() for p in final_doc_parts])}

@@ -8,10 +8,10 @@ from langgraph.types import Send
 
 from tada.domain.workbook import Workbook, WorkbookSection
 from tada.graph.nodes import (
-    compile_summaries,
     emit_section_documentation,
     evaluate_section_documentation,
     generate_section_documentation,
+    summarize_all_sections_documentation,
 )
 from tada.graph.state import (
     InputState,
@@ -29,7 +29,7 @@ class NodeId(StrEnum):
     DOCUMENT_SECTION = "document_section"
     EVALUATE_SECTION_DOCS = "evaluate_section_docs"
     EMIT_SECTION_DOCS = "emit_section_docs"
-    COMPILE_SUMMARIES = "compile_summaries"
+    SUMMARIZE_ALL_SECTION_DOCS = "summarize_all_section_docs"
 
 
 def route_evaluation_results(state: SectionDocumenterState) -> NodeId:
@@ -66,8 +66,8 @@ def route_evaluation_results(state: SectionDocumenterState) -> NodeId:
     return NodeId.DOCUMENT_SECTION
 
 
-def _get_section_summarizer_payload(section: WorkbookSection, workbook: Workbook):
-    prompt, response_template = section.load_summarization_prompts()
+def _get_section_documenter_payload(section: WorkbookSection, workbook: Workbook):
+    prompt, response_template = section.load_documentation_prompts()
     return {
         "section": section,
         "data": section.fetch_from(workbook),
@@ -77,14 +77,14 @@ def _get_section_summarizer_payload(section: WorkbookSection, workbook: Workbook
     }
 
 
-def route_plan_to_summarizers(state: InputState) -> list[Send]:
+def route_plan_to_documenters(state: InputState) -> list[Send]:
     if not state["generation_plan"]:
         raise ValueError("generation_plan must contain at least one WorkbookSection")
 
     return [
         Send(
             NodeId.DOCUMENT_SECTION,
-            _get_section_summarizer_payload(section, state["workbook"]),
+            _get_section_documenter_payload(section, state["workbook"]),
         )
         for section in state["generation_plan"]
     ]
@@ -112,10 +112,12 @@ def build_documentation_workflow(
     builder.add_node(NodeId.DOCUMENT_SECTION, generate_section_documentation)
     builder.add_node(NodeId.EVALUATE_SECTION_DOCS, evaluate_section_documentation)
     builder.add_node(NodeId.EMIT_SECTION_DOCS, emit_section_documentation)
-    builder.add_node(NodeId.COMPILE_SUMMARIES, compile_summaries)
+    builder.add_node(
+        NodeId.SUMMARIZE_ALL_SECTION_DOCS, summarize_all_sections_documentation
+    )
 
     builder.add_conditional_edges(
-        START, route_plan_to_summarizers, [NodeId.DOCUMENT_SECTION]
+        START, route_plan_to_documenters, [NodeId.DOCUMENT_SECTION]
     )
     builder.add_edge(NodeId.DOCUMENT_SECTION, NodeId.EVALUATE_SECTION_DOCS)
     builder.add_conditional_edges(
@@ -123,8 +125,8 @@ def build_documentation_workflow(
         route_evaluation_results,
         [NodeId.EMIT_SECTION_DOCS, NodeId.DOCUMENT_SECTION],
     )
-    builder.add_edge(NodeId.EMIT_SECTION_DOCS, NodeId.COMPILE_SUMMARIES)
-    builder.add_edge(NodeId.COMPILE_SUMMARIES, END)
+    builder.add_edge(NodeId.EMIT_SECTION_DOCS, NodeId.SUMMARIZE_ALL_SECTION_DOCS)
+    builder.add_edge(NodeId.SUMMARIZE_ALL_SECTION_DOCS, END)
 
     workflow = builder.compile(checkpointer=checkpointer)
     logger.debug("Workflow compiled:\n%s", workflow.get_graph().draw_ascii())

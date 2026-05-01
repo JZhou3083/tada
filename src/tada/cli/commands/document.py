@@ -164,7 +164,7 @@ def run_document(
         workflow = build_documentation_workflow()
         workflow_input = InputState(
             workbook=workbook,
-            generation_plan=sections,  # TODO: generation plan should be unordered and decided by the graph
+            generation_plan=sections,
         )
 
         logger.debug(
