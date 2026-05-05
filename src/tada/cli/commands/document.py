@@ -18,7 +18,7 @@ from tada.cli.options import (
 )
 from tada.domain.workbook import Workbook, WorkbookSection
 from tada.graph.state import InputState
-from tada.graph.workflow import build_documentation_workflow
+from tada.graph.workflows.full_workbook import build_documentation_workflow
 
 logger = logging.getLogger(__name__)
 
