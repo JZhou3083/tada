@@ -7,18 +7,15 @@ from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import Send
 
 from tada.domain.workbook import Workbook, WorkbookSection
-from tada.graph.nodes import (
-    emit_section_documentation,
-    evaluate_section_documentation,
-    generate_section_documentation,
+from tada.graph.nodes.summarize import (
     summarize_all_sections_documentation,
 )
 from tada.graph.state import (
     InputState,
     OutputState,
     OverallState,
-    SectionDocumenterState,
 )
+from tada.graph.workflows.section_subgraph import build_section_documenter_subgraph
 
 logger = logging.getLogger(__name__)
 
@@ -27,43 +24,7 @@ MAX_SECTION_ATTEMPTS = 2
 
 class NodeId(StrEnum):
     DOCUMENT_SECTION = "document_section"
-    EVALUATE_SECTION_DOCS = "evaluate_section_docs"
-    EMIT_SECTION_DOCS = "emit_section_docs"
     SUMMARIZE_ALL_SECTION_DOCS = "summarize_all_section_docs"
-
-
-def route_evaluation_results(state: SectionDocumenterState) -> NodeId:
-    if "evaluation_history" not in state:
-        raise ValueError("No evaluation to route")
-
-    latest_eval = state["evaluation_history"][-1]
-
-    if latest_eval.passed:
-        logger.debug(
-            "Emitting documentation for %s attempt=%d non_blocking_issues=%d",
-            state["section"].value,
-            state["attempts"],
-            len(latest_eval.non_blocking_issues),
-        )
-        return NodeId.EMIT_SECTION_DOCS
-    elif state["attempts"] > MAX_SECTION_ATTEMPTS:
-        logger.debug(
-            "Hit maximum attempts for %s attempt=%d blocking_issues=%d non_blocking_issues=%d",
-            state["section"].value,
-            state["attempts"],
-            len(latest_eval.blocking_issues),
-            len(latest_eval.non_blocking_issues),
-        )
-        return NodeId.EMIT_SECTION_DOCS
-
-    logger.debug(
-        "Retrying documentation for %s attempt=%d blocking_issues=%d non_blocking_issues=%d",
-        state["section"].value,
-        state["attempts"],
-        len(latest_eval.blocking_issues),
-        len(latest_eval.non_blocking_issues),
-    )
-    return NodeId.DOCUMENT_SECTION
 
 
 def _get_section_documenter_payload(section: WorkbookSection, workbook: Workbook):
@@ -73,7 +34,6 @@ def _get_section_documenter_payload(section: WorkbookSection, workbook: Workbook
         "data": section.fetch_from(workbook),
         "prompt": prompt,
         "response_template": response_template,
-        "attempts": 0,
     }
 
 
@@ -96,22 +56,21 @@ def build_documentation_workflow(
     """Construct and compile the LangGraph workflow for workbook documentation.
 
     This function creates the workflow definition from scratch and returns a
-    compiled graph ready to be invoked with a ``State`` payload.
+    compiled graph ready to be invoked.
 
     Args:
         checkpointer: A checkpoint saver object which will be passed to the graph and
             can be used to persist graph states.
 
     Returns:
-        A compiled LangGraph workflow that accepts ``State`` as input.
+        A compiled LangGraph workflow that accepts a Workbook object and generation plan
+            as input.
     """
     builder = StateGraph(
         OverallState, input_schema=InputState, output_schema=OutputState
     )
 
-    builder.add_node(NodeId.DOCUMENT_SECTION, generate_section_documentation)
-    builder.add_node(NodeId.EVALUATE_SECTION_DOCS, evaluate_section_documentation)
-    builder.add_node(NodeId.EMIT_SECTION_DOCS, emit_section_documentation)
+    builder.add_node(NodeId.DOCUMENT_SECTION, build_section_documenter_subgraph())
     builder.add_node(
         NodeId.SUMMARIZE_ALL_SECTION_DOCS, summarize_all_sections_documentation
     )
@@ -119,13 +78,7 @@ def build_documentation_workflow(
     builder.add_conditional_edges(
         START, route_plan_to_documenters, [NodeId.DOCUMENT_SECTION]
     )
-    builder.add_edge(NodeId.DOCUMENT_SECTION, NodeId.EVALUATE_SECTION_DOCS)
-    builder.add_conditional_edges(
-        NodeId.EVALUATE_SECTION_DOCS,
-        route_evaluation_results,
-        [NodeId.EMIT_SECTION_DOCS, NodeId.DOCUMENT_SECTION],
-    )
-    builder.add_edge(NodeId.EMIT_SECTION_DOCS, NodeId.SUMMARIZE_ALL_SECTION_DOCS)
+    builder.add_edge(NodeId.DOCUMENT_SECTION, NodeId.SUMMARIZE_ALL_SECTION_DOCS)
     builder.add_edge(NodeId.SUMMARIZE_ALL_SECTION_DOCS, END)
 
     workflow = builder.compile(checkpointer=checkpointer)

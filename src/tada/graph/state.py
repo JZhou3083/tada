@@ -1,5 +1,5 @@
 import operator
-from typing import Annotated, Any, NotRequired, TypedDict
+from typing import Annotated, Any, TypedDict
 
 from tada.domain.workbook import Workbook, WorkbookSection
 from tada.llm.schemas import EvalResult
@@ -26,11 +26,18 @@ class OverallState(InputState, OutputState):
     ]
 
 
-class SectionDocumenterState(TypedDict):
+class SectionDocumenterInput(TypedDict):
     section: WorkbookSection
     data: dict[str, Any]
     prompt: str
     response_template: str
-    generated_docs: NotRequired[str]
+
+
+class SectionDocumenterOutput(TypedDict):
+    section_docs: dict[WorkbookSection, str]
+
+
+class SectionDocumenterState(SectionDocumenterInput, SectionDocumenterOutput):
+    generated_docs: str
     evaluation_history: Annotated[list[EvalResult], operator.add]
     attempts: int
