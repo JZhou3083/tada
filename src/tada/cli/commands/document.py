@@ -86,6 +86,7 @@ def _resolve_output_arg(output_path: OutputOpt | None, workbook_path: Path) -> P
         raise typer.Exit(code=0)
 
 
+# TODO: sections has been included to help with smaller tests, it should be removed from final product
 def _resolve_sections_arg(
     sections: SectionOpt | None,
     all_sections: AllSectionsOpt = False,

@@ -56,13 +56,13 @@ def _add_feedback_to_prompt(prompt: str, feedback: list[EvalResult]) -> str:
 def generate_section_documentation(
     state: SectionDocumenterState,
 ) -> dict[str, Any]:
-    if "attempts" not in state:
-        state["attempts"] = 0
+    if "generation_attempts" not in state:
+        state["generation_attempts"] = 0
 
     logger.debug(
-        "Beginning documentation generation for %s attempt=%d",
-        state["section"].value,
-        state["attempts"] + 1,
+        "Beginning generation node label=%s generation_attempt=%d",
+        f"{state['section'].value}:generate",
+        state["generation_attempts"] + 1,
     )
 
     full_prompt = state["prompt"]
@@ -100,15 +100,19 @@ def generate_section_documentation(
     )
 
     return {
-        "generated_docs": section_docs,
-        "attempts": state["attempts"] + 1,
+        "generated_section_doc": section_docs,
+        "generation_attempts": state["generation_attempts"] + 1,
     }
 
 
 def evaluate_section_documentation(state: SectionDocumenterState) -> dict[str, Any]:
-    logger.debug("Beginning evaluation for %s", state["section"].value)
+    logger.debug(
+        "Beginning evaluation node label=%s generation_attempt=%d",
+        f"{state['section'].value}:evaluate",
+        state.get("generation_attempts"),
+    )
 
-    if "generated_docs" not in state:
+    if "generated_section_doc" not in state:
         raise ValueError("No documentation exists in state to evaluate")
 
     evaluator_prompt = (
@@ -118,7 +122,7 @@ def evaluate_section_documentation(state: SectionDocumenterState) -> dict[str, A
     parts = [
         {"text": evaluator_prompt},
         {"text": json.dumps(state["data"])},
-        {"text": state["generated_docs"]},
+        {"text": state["generated_section_doc"]},
         {"text": state["response_template"]},
     ]
     contents = [{"role": "user", "parts": parts}]
@@ -148,7 +152,10 @@ def evaluate_section_documentation(state: SectionDocumenterState) -> dict[str, A
 
 def emit_section_documentation(state: SectionDocumenterState) -> dict[str, Any]:
     """Format results of documentation into a state update to remerge back into the parent branch"""
-    if "generated_docs" not in state:
-        raise ValueError("No docs yet generated")
+    if "generated_section_doc" not in state:
+        raise ValueError(
+            f"Cannot emit section documentation because generated_section_doc is missing. "
+            f"section={state.get('section').value}, attempts={state.get('attempts')}"
+        )
 
-    return {"section_docs": {state["section"]: state["generated_docs"]}}
+    return {"section_docs": {state["section"]: state["generated_section_doc"]}}

@@ -6,6 +6,7 @@ from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
+from tada.graph.config import MAX_SECTION_ATTEMPTS
 from tada.graph.nodes.section import (
     emit_section_documentation,
     evaluate_section_documentation,
@@ -18,8 +19,6 @@ from tada.graph.state import (
 )
 
 logger = logging.getLogger(__name__)
-
-MAX_SECTION_ATTEMPTS = 2
 
 
 class SectionNodeId(StrEnum):
@@ -38,16 +37,16 @@ def route_evaluation_results(state: SectionDocumenterState) -> Literal["emit", "
         logger.debug(
             "Emitting documentation for %s attempt=%d non_blocking_issues=%d",
             state["section"].value,
-            state["attempts"],
+            state["generation_attempts"],
             len(latest_eval.non_blocking_issues),
         )
         return "emit"
 
-    elif state["attempts"] > MAX_SECTION_ATTEMPTS:
+    elif state["generation_attempts"] > MAX_SECTION_ATTEMPTS:
         logger.debug(
             "Hit maximum attempts for %s attempt=%d blocking_issues=%d non_blocking_issues=%d",
             state["section"].value,
-            state["attempts"],
+            state["generation_attempts"],
             len(latest_eval.blocking_issues),
             len(latest_eval.non_blocking_issues),
         )
@@ -56,7 +55,7 @@ def route_evaluation_results(state: SectionDocumenterState) -> Literal["emit", "
     logger.debug(
         "Retrying documentation for %s attempt=%d blocking_issues=%d non_blocking_issues=%d",
         state["section"].value,
-        state["attempts"],
+        state["generation_attempts"],
         len(latest_eval.blocking_issues),
         len(latest_eval.non_blocking_issues),
     )

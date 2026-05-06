@@ -24,13 +24,15 @@ SECTION_ORDER = [
 
 
 def summarize_all_sections_documentation(state: OverallState) -> OutputState:
-    section_docs = state["section_docs"]
-    ordered_section_docs = [section_docs[s] for s in SECTION_ORDER if s in section_docs]
+    docs_by_section = state["docs_by_section"]
+    ordered_section_docs = [
+        docs_by_section[s] for s in SECTION_ORDER if s in docs_by_section
+    ]
     compiled_doc = "\\pagebreak\n\n".join(ordered_section_docs)
 
     logger.debug(
         "Compiled %d section docs into one document chars=%d",
-        len(section_docs),
+        len(docs_by_section),
         len(compiled_doc),
     )
 

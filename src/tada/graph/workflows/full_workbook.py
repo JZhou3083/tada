@@ -19,8 +19,6 @@ from tada.graph.workflows.section_subgraph import build_section_documenter_subgr
 
 logger = logging.getLogger(__name__)
 
-MAX_SECTION_ATTEMPTS = 2
-
 
 class NodeId(StrEnum):
     DOCUMENT_SECTION = "document_section"
@@ -46,7 +44,7 @@ def route_plan_to_documenters(state: InputState) -> list[Send]:
             NodeId.DOCUMENT_SECTION,
             _get_section_documenter_payload(section, state["workbook"]),
         )
-        for section in state["generation_plan"]
+        for section in set(state["generation_plan"])
     ]
 
 

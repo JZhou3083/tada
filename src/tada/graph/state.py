@@ -19,8 +19,8 @@ def merge_dicts(a: dict, b: dict) -> dict:
 
 
 class OverallState(InputState, OutputState):
-    # section_docs is an internal field not exposed in either input or output
-    section_docs: Annotated[
+    # docs_by_section is an internal field not exposed in either input or output
+    docs_by_section: Annotated[
         dict[WorkbookSection, str],
         merge_dicts,
     ]
@@ -34,10 +34,10 @@ class SectionDocumenterInput(TypedDict):
 
 
 class SectionDocumenterOutput(TypedDict):
-    section_docs: dict[WorkbookSection, str]
+    docs_by_section: dict[WorkbookSection, str]
 
 
 class SectionDocumenterState(SectionDocumenterInput, SectionDocumenterOutput):
-    generated_docs: str
+    generated_section_doc: str
     evaluation_history: Annotated[list[EvalResult], operator.add]
-    attempts: int
+    generation_attempts: int
