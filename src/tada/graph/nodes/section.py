@@ -96,7 +96,6 @@ def generate_section_documentation(
         response,
         label=f"{state['section'].value}:generate",
         elapsed=elapsed,
-        model="gemini-3-flash-preview",
     )
 
     return {
@@ -144,7 +143,6 @@ def evaluate_section_documentation(state: SectionDocumenterState) -> dict[str, A
         response,
         label=f"{state['section'].value}:evaluate",
         elapsed=elapsed,
-        model="gemini-3-flash-preview",
     )
 
     return {"evaluation_history": [evaluation]}

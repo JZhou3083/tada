@@ -9,10 +9,9 @@ def log_genai_usage(
     *,
     label: str,
     elapsed: float,
-    model: str | None = None,
 ):
-    um = getattr(response, "usage_metadata", None)
-    text = getattr(response, "text", "") or ""
+    um = response.usage_metadata
+    text = response.text or ""
     chars = len(str(text))
 
     um = getattr(response, "usage_metadata", None)
@@ -20,7 +19,7 @@ def log_genai_usage(
         "Generation completed label=%s model=%s duration=%.3fs chars=%d tokens_total=%s "
         "tokens_prompt=%s tokens_output=%s tokens_cached=%s cache_hit=%s",
         label,
-        model or "-",
+        response.model_version,
         elapsed,
         chars,
         getattr(um, "total_token_count", None),

@@ -62,7 +62,6 @@ def summarize_all_sections_documentation(state: OverallState) -> OutputState:
         response,
         label="compile",
         elapsed=elapsed,
-        model="gemini-3-flash-preview",
     )
 
     final_doc_parts = [documentation_summary] + ordered_section_docs
