@@ -156,4 +156,4 @@ def emit_section_documentation(state: SectionDocumenterState) -> dict[str, Any]:
             f"section={state.get('section').value}, attempts={state.get('attempts')}"
         )
 
-    return {"section_docs": {state["section"]: state["generated_section_doc"]}}
+    return {"docs_by_section": {state["section"]: state["generated_section_doc"]}}

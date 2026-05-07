@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 # Section order is mirrored from doc-agent repo config.yaml
+# TODO: not all sections needed potentially
 SECTION_ORDER = [
     WorkbookSection.DATASOURCES,
     WorkbookSection.CALCULATIONS,
