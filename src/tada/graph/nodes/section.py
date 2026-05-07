@@ -4,6 +4,8 @@ import time
 from importlib import resources
 from typing import Any
 
+from tada.graph.events import SectionState
+from tada.graph.nodes.helpers import emit_graph_status
 from tada.graph.state import SectionDocumenterState
 from tada.llm.client import get_vertexai_gateway
 from tada.llm.configs import build_base_generation_config
@@ -56,8 +58,20 @@ def _add_feedback_to_prompt(prompt: str, feedback: list[EvalResult]) -> str:
 def generate_section_documentation(
     state: SectionDocumenterState,
 ) -> dict[str, Any]:
+    # `generation_attempts` state var is not set on first generation
     if "generation_attempts" not in state:
         state["generation_attempts"] = 0
+        emit_graph_status(
+            section=state["section"].value,
+            state=SectionState.GENERATING,
+            attempts=0,
+        )
+    else:
+        emit_graph_status(
+            section=state["section"].value,
+            state=SectionState.RETRYING,
+            attempts=state["generation_attempts"],
+        )
 
     logger.debug(
         "Beginning generation node label=%s generation_attempt=%d",
@@ -88,6 +102,7 @@ def generate_section_documentation(
         contents=contents,
         config=build_base_generation_config(system_instruction=system_instruction),
     )
+    time.sleep(8)
     end = time.perf_counter()
     elapsed = end - start
 
@@ -105,6 +120,12 @@ def generate_section_documentation(
 
 
 def evaluate_section_documentation(state: SectionDocumenterState) -> dict[str, Any]:
+    emit_graph_status(
+        section=state["section"].value,
+        state=SectionState.EVALUATING,
+        attempts=state["generation_attempts"],
+    )
+
     logger.debug(
         "Beginning evaluation node label=%s generation_attempt=%d",
         f"{state['section'].value}:evaluate",
@@ -150,6 +171,12 @@ def evaluate_section_documentation(state: SectionDocumenterState) -> dict[str, A
 
 def emit_section_documentation(state: SectionDocumenterState) -> dict[str, Any]:
     """Format results of documentation into a state update to remerge back into the parent branch"""
+    emit_graph_status(
+        section=state["section"].value,
+        state=SectionState.DONE,
+        attempts=state["generation_attempts"],
+    )
+
     if "generated_section_doc" not in state:
         raise ValueError(
             f"Cannot emit section documentation because generated_section_doc is missing. "

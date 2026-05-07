@@ -4,10 +4,23 @@ from pathlib import Path
 import questionary
 import typer
 from questionary import Choice
+from rich.live import Live
+from rich.progress import (
+    BarColumn,
+    Progress,
+    SpinnerColumn,
+    TextColumn,
+    TimeElapsedColumn,
+)
 
 from tada.cli.commands._base import AppCommand
 from tada.cli.config import cli_config
-from tada.cli.display import console, print_debug_notice, print_tada_banner
+from tada.cli.display import (
+    build_graph_status_display,
+    console,
+    print_debug_notice,
+    print_tada_banner,
+)
 from tada.cli.input import ask_for_file_path
 from tada.cli.options import (
     AllSectionsOpt,
@@ -17,6 +30,7 @@ from tada.cli.options import (
     WorkbookOpt,
 )
 from tada.domain.workbook import Workbook, WorkbookSection
+from tada.graph.events import GraphStatusEvent, SectionState, Status
 from tada.graph.state import InputState
 from tada.graph.workflows.full_workbook import build_documentation_workflow
 
@@ -161,22 +175,63 @@ def run_document(
         workbook.write_debug(cli_config.debug_dir)
         logger.debug("Wrote parsed workbook contents to %s", cli_config.debug_dir)
 
-    with console.status("Generating documentation...", spinner="dots"):
-        workflow = build_documentation_workflow()
-        workflow_input = InputState(
-            workbook=workbook,
-            generation_plan=sections,
-        )
+    workflow = build_documentation_workflow()
+    workflow_input = InputState(
+        workbook=workbook,
+        generation_plan=sections,
+    )
 
-        logger.debug(
-            "Invoking documentation graph...",
-        )
-        result = workflow.invoke(workflow_input)
-        logger.debug("Graph complete.")
+    logger.debug(
+        "Invoking documentation graph...",
+    )
+
+    section_statuses = {sec.value: Status() for sec in sections}
+
+    progress = Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TextColumn("{task.completed}/{task.total} steps"),
+        TimeElapsedColumn(),
+    )
+    overall = progress.add_task("Running workflow...", total=len(sections))
+
+    with Live(
+        build_graph_status_display(section_statuses, progress),
+        refresh_per_second=10,
+        console=console,
+    ) as live:
+
+        def refresh():
+            live.update(build_graph_status_display(section_statuses, progress))
+
+        documentation = None
+        for chunk in workflow.stream(
+            input=workflow_input,
+            stream_mode=["custom", "values"],
+            subgraphs=True,
+            version="v2",
+        ):
+            if chunk["type"] == "custom":
+                status_update: GraphStatusEvent = chunk["data"]
+                section_statuses[status_update.section] = status_update.status
+
+                if status_update.status.state == SectionState.DONE:
+                    progress.advance(overall)
+
+                refresh()
+
+            elif chunk["type"] == "values":
+                documentation: str | None = chunk["data"].get("final_doc")
+
+    logger.debug("Graph complete.")
+
+    if not documentation:
+        raise ValueError("Something went wrong during graph run")
 
     console.print("[green]✔[/green] Generated response")
 
-    output_path.write_text(result["final_doc"])
+    output_path.write_text(documentation)
 
     console.print(f"[green]✔[/green] Documentation exported → {output_path.name}")
 
