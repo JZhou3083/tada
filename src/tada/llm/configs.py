@@ -14,4 +14,5 @@ def build_base_generation_config(
             include_thoughts=False, thinking_level=types.ThinkingLevel.LOW
         ),
         automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
+        labels={"project": "TADA"},
     )
