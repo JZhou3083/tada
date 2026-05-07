@@ -184,3 +184,22 @@ def emit_section_documentation(state: SectionDocumenterState) -> dict[str, Any]:
         )
 
     return {"docs_by_section": {state["section"]: state["generated_section_doc"]}}
+
+
+def emit_section_documentation_with_issues(
+    state: SectionDocumenterState,
+) -> dict[str, Any]:
+
+    emit_graph_status(
+        section=state["section"].value,
+        state=SectionState.REACHED_RETRY_LIMIT,
+        attempts=state["generation_attempts"],
+    )
+
+    if "generated_section_doc" not in state:
+        raise ValueError(
+            f"Cannot emit section documentation because generated_section_doc is missing. "
+            f"section={state.get('section').value}, attempts={state.get('attempts')}"
+        )
+
+    return {"docs_by_section": {state["section"]: state["generated_section_doc"]}}

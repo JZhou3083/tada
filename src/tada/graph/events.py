@@ -9,6 +9,7 @@ class SectionState(Enum):
     GENERATING = "generating"
     EVALUATING = "evaluating"
     RETRYING = "retrying"
+    REACHED_RETRY_LIMIT = "reached_retry_limit"
     DONE = "done"
 
 

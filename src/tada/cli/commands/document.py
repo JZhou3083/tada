@@ -227,9 +227,7 @@ def run_document(
     logger.debug("Graph complete.")
 
     if not documentation:
-        raise ValueError("Something went wrong during graph run")
-
-    console.print("[green]✔[/green] Generated response")
+        raise ValueError("Expected key `final_doc` not found in graph output")
 
     output_path.write_text(documentation)
 

@@ -9,6 +9,7 @@ from langgraph.graph.state import CompiledStateGraph
 from tada.graph.config import MAX_SECTION_ATTEMPTS
 from tada.graph.nodes.section import (
     emit_section_documentation,
+    emit_section_documentation_with_issues,
     evaluate_section_documentation,
     generate_section_documentation,
 )
@@ -22,12 +23,15 @@ logger = logging.getLogger(__name__)
 
 
 class SectionNodeId(StrEnum):
-    DOCUMENT_SECTION = "document_section"
+    GENERATE_SECTION_DOCS = "generate_section_docs"
     EVALUATE_SECTION_DOCS = "evaluate_section_docs"
     EMIT_SECTION_DOCS = "emit_section_docs"
+    EMIT_SECTION_DOCS_WITH_ISSUES = "emit_section_docs_with_issues"
 
 
-def route_evaluation_results(state: SectionDocumenterState) -> Literal["emit", "retry"]:
+def route_evaluation_results(
+    state: SectionDocumenterState,
+) -> Literal["emit", "emit_with_issues", "retry"]:
     if "evaluation_history" not in state:
         raise ValueError("No evaluation to route")
 
@@ -50,7 +54,7 @@ def route_evaluation_results(state: SectionDocumenterState) -> Literal["emit", "
             len(latest_eval.blocking_issues),
             len(latest_eval.non_blocking_issues),
         )
-        return "emit"
+        return "emit_with_issues"
 
     logger.debug(
         "Retrying documentation for %s attempt=%d blocking_issues=%d non_blocking_issues=%d",
@@ -72,22 +76,29 @@ def build_section_documenter_subgraph(
         output_schema=SectionDocumenterOutput,
     )
 
-    builder.add_node(SectionNodeId.DOCUMENT_SECTION, generate_section_documentation)
+    builder.add_node(
+        SectionNodeId.GENERATE_SECTION_DOCS, generate_section_documentation
+    )
     builder.add_node(
         SectionNodeId.EVALUATE_SECTION_DOCS, evaluate_section_documentation
     )
     builder.add_node(SectionNodeId.EMIT_SECTION_DOCS, emit_section_documentation)
+    builder.add_node(
+        SectionNodeId.EMIT_SECTION_DOCS_WITH_ISSUES,
+        emit_section_documentation_with_issues,
+    )
 
-    builder.add_edge(START, SectionNodeId.DOCUMENT_SECTION)
+    builder.add_edge(START, SectionNodeId.GENERATE_SECTION_DOCS)
     builder.add_edge(
-        SectionNodeId.DOCUMENT_SECTION, SectionNodeId.EVALUATE_SECTION_DOCS
+        SectionNodeId.GENERATE_SECTION_DOCS, SectionNodeId.EVALUATE_SECTION_DOCS
     )
     builder.add_conditional_edges(
         SectionNodeId.EVALUATE_SECTION_DOCS,
         route_evaluation_results,
         {
             "emit": SectionNodeId.EMIT_SECTION_DOCS,
-            "retry": SectionNodeId.DOCUMENT_SECTION,
+            "emit_with_issues": SectionNodeId.EMIT_SECTION_DOCS_WITH_ISSUES,
+            "retry": SectionNodeId.GENERATE_SECTION_DOCS,
         },
     )
     builder.add_edge(SectionNodeId.EMIT_SECTION_DOCS, END)
