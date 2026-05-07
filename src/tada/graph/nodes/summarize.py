@@ -37,34 +37,37 @@ def summarize_all_sections_documentation(state: OverallState) -> OutputState:
         len(compiled_doc),
     )
 
-    summariser_prompt = (
-        resources.files("tada") / "prompts" / "summariser.md"
-    ).read_text(encoding="utf-8")
+    final_doc_parts = ordered_section_docs
 
-    parts = [
-        {"text": summariser_prompt},
-        {"text": compiled_doc},
-    ]
-    contents = [{"role": "user", "parts": parts}]
+    if state["run_summary_step"]:
+        summariser_prompt = (
+            resources.files("tada") / "prompts" / "summariser.md"
+        ).read_text(encoding="utf-8")
 
-    client_wrapper = get_vertexai_gateway()
+        parts = [
+            {"text": summariser_prompt},
+            {"text": compiled_doc},
+        ]
+        contents = [{"role": "user", "parts": parts}]
 
-    start = time.perf_counter()
-    response, documentation_summary = client_wrapper.generate_text(
-        model="gemini-3-flash-preview",
-        contents=contents,
-        config=build_base_generation_config(),
-    )
-    end = time.perf_counter()
-    elapsed = end - start
+        client_wrapper = get_vertexai_gateway()
 
-    log_genai_usage(
-        logger,
-        response,
-        label="compile",
-        elapsed=elapsed,
-    )
+        start = time.perf_counter()
+        response, documentation_summary = client_wrapper.generate_text(
+            model="gemini-3-flash-preview",
+            contents=contents,
+            config=build_base_generation_config(),
+        )
+        end = time.perf_counter()
+        elapsed = end - start
 
-    final_doc_parts = [documentation_summary] + ordered_section_docs
+        log_genai_usage(
+            logger,
+            response,
+            label="compile",
+            elapsed=elapsed,
+        )
+
+        final_doc_parts = [documentation_summary] + ordered_section_docs
 
     return {"final_doc": "\n\n".join([p.rstrip() for p in final_doc_parts])}

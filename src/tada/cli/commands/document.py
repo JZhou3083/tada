@@ -164,6 +164,9 @@ def run_document(
     workbook_path = _resolve_workbook_arg(workbook_path)
     output_path = _resolve_output_arg(output_path, workbook_path)
     sections = _resolve_sections_arg(sections, all_sections)
+    include_summary = questionary.confirm(
+        "Include a top-level summary of selected sections?"
+    ).ask()
 
     # Pre-process the workbook using our pre-existing XML -> JSON parsing approach
     logger.debug("Parsing workbook: %s", workbook_path)
@@ -179,6 +182,7 @@ def run_document(
     workflow_input = InputState(
         workbook=workbook,
         generation_plan=sections,
+        run_summary_step=include_summary,
     )
 
     logger.debug(

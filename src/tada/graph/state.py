@@ -8,6 +8,7 @@ from tada.llm.schemas import EvalResult
 class InputState(TypedDict):
     workbook: Workbook
     generation_plan: list[WorkbookSection]
+    run_summary_step: bool
 
 
 class OutputState(TypedDict):
