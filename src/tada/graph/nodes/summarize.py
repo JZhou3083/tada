@@ -3,6 +3,7 @@ import time
 from importlib import resources
 
 from tada.domain.workbook import WorkbookSection
+from tada.graph.config import AI_NOTICE
 from tada.graph.state import OutputState, OverallState
 from tada.llm.client import get_vertexai_gateway
 from tada.llm.configs import build_base_generation_config
@@ -70,4 +71,6 @@ def summarize_all_sections_documentation(state: OverallState) -> OutputState:
 
         final_doc_parts = [documentation_summary] + ordered_section_docs
 
-    return {"final_doc": "\n\n".join([p.rstrip() for p in final_doc_parts])}
+    return {
+        "final_doc": "\n\n".join([p.rstrip() for p in [AI_NOTICE] + final_doc_parts])
+    }
