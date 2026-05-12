@@ -1,3 +1,5 @@
+import warnings
+
 import questionary
 import typer
 from questionary import Choice
@@ -8,6 +10,14 @@ from tada.cli.commands.document import COMMAND as DOCUMENT_COMMAND
 from tada.cli.config import cli_config
 from tada.cli.display import console, print_debug_notice, print_tada_banner
 from tada.cli.options import DebugOpt
+
+# Silence this specific auth-warning which Google SDK prints directly to console
+warnings.filterwarnings(
+    "ignore",
+    message=r".*authenticated using end user credentials from Google Cloud SDK without a quota project.*",
+    category=UserWarning,
+    module=r"google\.auth\._default",
+)
 
 app = typer.Typer(
     name="Tableau Documentation Agent (TaDA)",
