@@ -6,6 +6,7 @@ SECTION_STATE_STYLE = {
     SectionState.EVALUATING: ("🔍", "cyan"),
     SectionState.RETRYING: ("🔄", "orange3"),
     SectionState.REACHED_RETRY_LIMIT: ("⚠️", "yellow3"),
+    SectionState.FAILED: ("🛑", "red"),
     SectionState.DONE: ("✅", "green"),
 }
 

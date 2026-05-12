@@ -190,9 +190,6 @@ def run_document(
     statuses = GraphStatusStore()
     display = GraphStatusDisplay(total_sections=len(sections))
 
-    console.print()
-    console.rule("[bold cyan]Run overview[/]", style="cyan")
-    console.print()
     with Live(
         display.build(statuses),
         refresh_per_second=10,

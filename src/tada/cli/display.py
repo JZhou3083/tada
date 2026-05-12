@@ -3,7 +3,6 @@ from pathlib import Path
 
 from rich.align import Align
 from rich.console import Console, Group
-from rich.padding import Padding
 from rich.panel import Panel
 from rich.progress import (
     BarColumn,
@@ -12,6 +11,7 @@ from rich.progress import (
     TextColumn,
     TimeElapsedColumn,
 )
+from rich.rule import Rule
 from rich.spinner import Spinner
 from rich.table import Table
 from rich.text import Text
@@ -94,31 +94,53 @@ class GraphStatusDisplay:
     def build(self, statuses: GraphStatusStore) -> Group:
         self._sync_progress(statuses)
 
-        items = []
+        items = [
+            Rule("Sections", style="bold blue"),
+            self._build_sections_table(statuses),
+            Text(""),
+            self.sections_progress,
+        ]
 
-        sections_grid = Table.grid()
-        sections_grid.add_column()
-        sections_grid.add_row(Text("Sections", style="bold"))
+        # sections_grid = Table.grid()
+        # sections_grid.add_column()
+        # sections_grid.add_row(Text("Sections", style="bold"))
 
-        sections_grid.add_row(self._build_sections_table(statuses))
-        sections_grid.add_row(Text(""))
-        sections_grid.add_row(self.sections_progress)
+        # sections_grid.add_row(self._build_sections_table(statuses))
+        # sections_grid.add_row(Text(""))
+        # sections_grid.add_row(self.sections_progress)
 
-        items.append(sections_grid)
+        # items.append(sections_grid)
 
         issues_table = self._build_issues_table(statuses)
         if issues_table is not None:
-            issues_grid = Table.grid(padding=(0, 0))
-            issues_grid.add_column()
+            items.extend(
+                [
+                    Text(""),
+                    Rule("Issues", style="bold yellow"),
+                    issues_table,
+                ]
+            )
 
-            issues_grid.add_row(Text("Issues", style="bold"))
-            issues_grid.add_row(issues_table)
+            # issues_grid = Table.grid(padding=(0, 0))
+            # issues_grid.add_column()
 
-            items.append(Padding(issues_grid, (1, 0, 0, 0)))
+            # issues_grid.add_row(Text("Issues", style="bold"))
+            # issues_grid.add_row(issues_table)
+
+            # items.append(Padding(issues_grid, (1, 0, 0, 0)))
+
+        # if statuses.summary:
+        #     items.append(Text(""))
+        #     items.append(self._build_summary(statuses.summary))
 
         if statuses.summary:
-            items.append(Text(""))
-            items.append(self._build_summary(statuses.summary))
+            items.extend(
+                [
+                    Text(""),
+                    Rule("Summary", style="bold green"),
+                    self._build_summary(statuses.summary),
+                ]
+            )
 
         return Group(*items)
 
@@ -128,21 +150,23 @@ class GraphStatusDisplay:
             header_style="bold blue",
             box=None,
             padding=(0, 1),
-            expand=False,
         )
-        tbl.add_column("Step", no_wrap=True)
-        tbl.add_column("Status", no_wrap=True)
-        tbl.add_column("Attempts", no_wrap=True)
-        tbl.add_column("Issues", no_wrap=True)
+        tbl.add_column("Step", no_wrap=True, width=14)
+        tbl.add_column("", no_wrap=True, width=3)
+        tbl.add_column("Status", no_wrap=True, width=24)
+        tbl.add_column("Attempts", no_wrap=True, width=8)
+        tbl.add_column("Issues", no_wrap=True, width=12)
 
         for sec_name, sec_status in statuses.sections.items():
             icon, color = SECTION_STATE_STYLE[sec_status.state]
 
             tbl.add_row(
                 sec_name,
+                Text(icon, style=color, no_wrap=True),
                 Text(
-                    f"{icon} {sec_status.state.name.replace('_', ' ').title()}",
+                    sec_status.state.name.replace("_", " ").title(),
                     style=color,
+                    no_wrap=True,
                 ),
                 str(sec_status.attempts) if sec_status.attempts > 0 else "-",
                 self._format_issue_count(sec_status),
@@ -162,17 +186,18 @@ class GraphStatusDisplay:
             box=None,
             padding=(0, 1),
         )
-        table.add_column("Step")
-        table.add_column("Severity")
-        table.add_column("Code")
-        table.add_column("Issue")
+
+        table.add_column("Step", no_wrap=True, width=14)
+        table.add_column("Severity", no_wrap=True, width=9)
+        table.add_column("Code", no_wrap=True, width=24, overflow="ellipsis")
+        table.add_column("Issue", ratio=1, overflow="fold")
 
         for step_name, issue in issue_rows:
             style = ISSUE_SEVERITY_STYLE[issue.severity]
 
             table.add_row(
                 step_name,
-                Text(issue.severity.value.title(), style=style),
+                Text(issue.severity.value.title(), style=style, no_wrap=True),
                 issue.code or "-",
                 issue.message,
             )
@@ -182,8 +207,6 @@ class GraphStatusDisplay:
     def _build_summary(self, summary_status: Status) -> Table:
         summary_grid = Table.grid(padding=(0, 1))
         summary_grid.add_column()
-
-        summary_grid.add_row(Text("Summary", style="bold"))
 
         if summary_status.state in SECTION_COMPLETE_STATES:
             summary_grid.add_row(Text("✅ Summary generated", style="green"))
@@ -204,6 +227,11 @@ class GraphStatusDisplay:
     ) -> list[tuple[str, StatusIssue]]:
         rows: list[tuple[str, StatusIssue]] = []
 
+        section_order = {
+            section_name: index
+            for index, section_name in enumerate(statuses.sections.keys())
+        }
+
         for section_name, section_status in statuses.sections.items():
             # Only want to surface error details for completed sections
             if section_status.state not in SECTION_COMPLETE_STATES:
@@ -219,41 +247,56 @@ class GraphStatusDisplay:
 
         return sorted(
             rows,
-            key=lambda row: self._issue_sort_key(row[1]),
+            key=lambda row: self._issue_sort_key(
+                section_name=row[0],
+                issue=row[1],
+                section_order=section_order,
+            ),
         )
 
-    def _issue_sort_key(self, issue: StatusIssue) -> int:
+    def _issue_sort_key(
+        self,
+        section_name: str,
+        issue: StatusIssue,
+        section_order: dict[str, int],
+    ) -> tuple[int, int, str, str]:
         severity_order = {
             IssueSeverity.ERROR: 0,
             IssueSeverity.WARNING: 1,
             IssueSeverity.INFO: 2,
         }
-        return severity_order[issue.severity]
+
+        return (
+            severity_order.get(issue.severity, 99),
+            section_order.get(section_name, 999),
+            issue.code or "",
+            issue.message,
+        )
 
     def _format_issue_count(self, status: Status) -> Text:
         if not status.issues:
             return Text("-")
 
-        error_count = sum(
-            1 for issue in status.issues if issue.severity == IssueSeverity.ERROR
-        )
-        warning_count = sum(
-            1 for issue in status.issues if issue.severity == IssueSeverity.WARNING
-        )
-        info_count = sum(
-            1 for issue in status.issues if issue.severity == IssueSeverity.INFO
-        )
+        counts = {
+            IssueSeverity.ERROR: 0,
+            IssueSeverity.WARNING: 0,
+            IssueSeverity.INFO: 0,
+        }
+
+        for issue in status.issues:
+            if issue.severity in counts:
+                counts[issue.severity] += 1
 
         parts: list[Text] = []
 
-        if error_count:
-            parts.append(Text(f"E:{error_count}", style="red"))
-        if warning_count:
-            parts.append(Text(f"W:{warning_count}", style="yellow"))
-        if info_count:
-            parts.append(Text(f"I:{info_count}", style="blue"))
+        if counts[IssueSeverity.ERROR]:
+            parts.append(Text(f"E:{counts[IssueSeverity.ERROR]}", style="red"))
+        if counts[IssueSeverity.WARNING]:
+            parts.append(Text(f"W:{counts[IssueSeverity.WARNING]}", style="yellow"))
+        if counts[IssueSeverity.INFO]:
+            parts.append(Text(f"I:{counts[IssueSeverity.INFO]}", style="blue"))
 
-        result = Text()
+        result = Text(no_wrap=True)
         for idx, part in enumerate(parts):
             if idx > 0:
                 result.append(" ")
