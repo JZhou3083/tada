@@ -5,7 +5,7 @@ from importlib import resources
 from typing import Any
 
 from tada.graph.events import SectionState
-from tada.graph.nodes.helpers import emit_graph_status
+from tada.graph.nodes.helpers import StepKind, emit_graph_status
 from tada.graph.state import SectionDocumenterState
 from tada.llm.client import get_vertexai_gateway
 from tada.llm.configs import build_base_generation_config
@@ -62,13 +62,15 @@ def generate_section_documentation(
     if "generation_attempts" not in state:
         state["generation_attempts"] = 0
         emit_graph_status(
-            section=state["section"].value,
+            name=state["section"].value,
+            kind=StepKind.SECTION,
             state=SectionState.GENERATING,
             attempts=0,
         )
     else:
         emit_graph_status(
-            section=state["section"].value,
+            name=state["section"].value,
+            kind=StepKind.SECTION,
             state=SectionState.RETRYING,
             attempts=state["generation_attempts"],
         )
@@ -121,7 +123,8 @@ def generate_section_documentation(
 
 def evaluate_section_documentation(state: SectionDocumenterState) -> dict[str, Any]:
     emit_graph_status(
-        section=state["section"].value,
+        name=state["section"].value,
+        kind=StepKind.SECTION,
         state=SectionState.EVALUATING,
         attempts=state["generation_attempts"],
     )
@@ -172,7 +175,8 @@ def evaluate_section_documentation(state: SectionDocumenterState) -> dict[str, A
 def emit_section_documentation(state: SectionDocumenterState) -> dict[str, Any]:
     """Format results of documentation into a state update to remerge back into the parent branch"""
     emit_graph_status(
-        section=state["section"].value,
+        name=state["section"].value,
+        kind=StepKind.SECTION,
         state=SectionState.DONE,
         attempts=state["generation_attempts"],
     )
@@ -191,7 +195,8 @@ def emit_section_documentation_with_issues(
 ) -> dict[str, Any]:
 
     emit_graph_status(
-        section=state["section"].value,
+        name=state["section"].value,
+        kind=StepKind.SECTION,
         state=SectionState.REACHED_RETRY_LIMIT,
         attempts=state["generation_attempts"],
     )

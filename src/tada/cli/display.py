@@ -2,16 +2,17 @@ import logging
 from pathlib import Path
 
 from rich.align import Align
-from rich.console import Console
+from rich.console import Console, Group
 from rich.panel import Panel
 from rich.progress import (
     Progress,
 )
+from rich.spinner import Spinner
 from rich.table import Table
 from rich.text import Text
 
 from tada.cli.theme import SECTION_STATE_STYLE
-from tada.graph.events import Status
+from tada.graph.events import GraphStatusStore, SectionState
 
 logger = logging.getLogger(__name__)
 console = Console()
@@ -64,10 +65,11 @@ def print_debug_notice(console: Console, debug_dir: Path) -> None:
     )
 
 
-def build_graph_status_display(
-    sections: dict[str, Status], progress: Progress
-) -> Table:
+def build_graph_status_display(statuses: GraphStatusStore, progress: Progress) -> Group:
     """Compose the live display: phase label + section table + progress bar."""
+    items = []
+
+    # By-Section Status
     grid = Table.grid(padding=(0, 1))
     grid.add_column()
 
@@ -76,18 +78,48 @@ def build_graph_status_display(
     tbl.add_column("Status")
     tbl.add_column("Attempts", justify="right")
 
-    logger.debug(f"sections to display: {sections}")
-    for sec, status in sections.items():
-        icon, color = SECTION_STATE_STYLE[status.state]
+    for sec_name, sec_status in statuses.sections.items():
+        icon, color = SECTION_STATE_STYLE[sec_status.state]
         tbl.add_row(
-            sec,
-            Text(f"{icon} {status.state.name.title()}", style=color),
-            str(status.attempts) if status.attempts > 0 else "-",
+            sec_name,
+            Text(f"{icon} {sec_status.state.name.title()}", style=color),
+            str(sec_status.attempts) if sec_status.attempts > 0 else "-",
         )
 
     grid.add_row(tbl)
     grid.add_row(Text(""))
-
-    # Progress bar
     grid.add_row(progress)
-    return grid
+
+    items.append(grid)
+
+    # Summary
+    if statuses.summary:
+        items.append(Text(""))
+
+        summary_grid = Table.grid(padding=(0, 1))
+        summary_grid.add_column()
+
+        summary_grid.add_row(Text("Summary", style="bold"))
+
+        if statuses.summary.state == SectionState.DONE:
+            summary_grid.add_row(Text("✅ Summary generated", style="green"))
+        else:
+            # Present the spinner for any summary state which is not DONE or `None`
+            summary_grid.add_row(
+                Spinner(
+                    "dots",
+                    text="Generating final summary...",
+                    style="cyan",
+                )
+            )
+
+        items.append(summary_grid)
+
+    return Group(*items)
+
+    # # Warnings
+    # warnings = collect_quality_warnings(sections)
+
+    # if warnings:
+    #     items.append(Text(""))
+    #     items.append(build_warnings_panel(warnings))

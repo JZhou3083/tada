@@ -1,5 +1,5 @@
 from functools import lru_cache
-from typing import TypeVar
+from typing import Iterable, TypeVar
 
 from google.genai import Client, types
 from pydantic import BaseModel
@@ -10,6 +10,10 @@ T = TypeVar("T", bound=BaseModel)
 class VertexAIGateway:
     def __init__(self, client: Client):
         self.client = client
+
+    @staticmethod
+    def contents_from_text_parts(text_parts: Iterable[str]) -> list[types.Part]:
+        return [types.Part.from_text(text=part) for part in text_parts]
 
     def generate_text(
         self,

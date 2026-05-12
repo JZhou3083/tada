@@ -30,7 +30,7 @@ from tada.cli.options import (
     WorkbookOpt,
 )
 from tada.domain.workbook import Workbook, WorkbookSection
-from tada.graph.events import GraphStatusEvent, SectionState, Status
+from tada.graph.events import GraphStatusEvent, GraphStatusStore, SectionState
 from tada.graph.state import InputState
 from tada.graph.workflows.full_workbook import build_documentation_workflow
 
@@ -167,12 +167,17 @@ def run_document(
     include_summary = questionary.confirm(
         "Include a top-level summary of selected sections?"
     ).ask()
+    # max_retries = questionary.select(
+    #     "Choose the permitted number of generation retries"
+    # )
+    # max_retries = questionary.select(
+    #     "Choose whether to enable evaluation if 0 retries?"
+    # )
 
     # Pre-process the workbook using our pre-existing XML -> JSON parsing approach
     logger.debug("Parsing workbook: %s", workbook_path)
     workbook = Workbook.from_file(workbook_path)
     logger.debug("Parsed workbook.")
-    console.print("[green]✔[/green] Processed workbook.")
 
     if cli_config.debug:
         workbook.write_debug(cli_config.debug_dir)
@@ -189,7 +194,12 @@ def run_document(
         "Invoking documentation graph...",
     )
 
-    section_statuses = {sec.value: Status() for sec in sections}
+    console.print()
+    console.print("[bold]Documenting by Section[/bold]")
+
+    # TODO: this should be an emit in the first node I believe
+    # {(StepKind.SECTION, sec.value): Status() for sec in sections}
+    statuses = GraphStatusStore()
 
     progress = Progress(
         SpinnerColumn(),
@@ -198,16 +208,16 @@ def run_document(
         TextColumn("{task.completed}/{task.total} steps"),
         TimeElapsedColumn(),
     )
-    overall = progress.add_task("Running workflow...", total=len(sections))
+    overall = progress.add_task("Documenting sections", total=len(sections))
 
     with Live(
-        build_graph_status_display(section_statuses, progress),
+        build_graph_status_display(statuses, progress),
         refresh_per_second=10,
         console=console,
     ) as live:
 
         def refresh():
-            live.update(build_graph_status_display(section_statuses, progress))
+            live.update(build_graph_status_display(statuses, progress))
 
         documentation = None
         for chunk in workflow.stream(
@@ -218,8 +228,10 @@ def run_document(
         ):
             if chunk["type"] == "custom":
                 status_update: GraphStatusEvent = chunk["data"]
-                section_statuses[status_update.section] = status_update.status
+                statuses.apply(status_update)
 
+                # TODO: progress bar should probably go in the build
+                # TODO: summary DONE is currently included
                 if status_update.status.state == SectionState.DONE:
                     progress.advance(overall)
 

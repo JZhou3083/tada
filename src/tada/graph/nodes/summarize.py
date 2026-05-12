@@ -4,6 +4,8 @@ from importlib import resources
 
 from tada.domain.workbook import WorkbookSection
 from tada.graph.config import AI_NOTICE
+from tada.graph.events import SectionState
+from tada.graph.nodes.helpers import StepKind, emit_graph_status
 from tada.graph.state import OutputState, OverallState
 from tada.llm.client import get_vertexai_gateway
 from tada.llm.configs import build_base_generation_config
@@ -41,6 +43,12 @@ def summarize_all_sections_documentation(state: OverallState) -> OutputState:
     final_doc_parts = ordered_section_docs
 
     if state["run_summary_step"]:
+        emit_graph_status(
+            name="summary",
+            kind=StepKind.SUMMARY,
+            state=SectionState.GENERATING,
+        )
+
         summariser_prompt = (
             resources.files("tada") / "prompts" / "summariser.md"
         ).read_text(encoding="utf-8")
@@ -70,6 +78,12 @@ def summarize_all_sections_documentation(state: OverallState) -> OutputState:
         )
 
         final_doc_parts = [documentation_summary] + ordered_section_docs
+
+    emit_graph_status(
+        name="summary",
+        kind=StepKind.SUMMARY,
+        state=SectionState.DONE,
+    )
 
     return {
         "final_doc": "\n\n".join([p.rstrip() for p in [AI_NOTICE] + final_doc_parts])
