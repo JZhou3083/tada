@@ -4,8 +4,8 @@ import time
 from importlib import resources
 from typing import Any
 
-from tada.graph.events import SectionState
-from tada.graph.nodes.helpers import StepKind, emit_graph_status
+from tada.graph.events import SectionState, StepKind, issues_from_eval_result
+from tada.graph.nodes.helpers import emit_graph_status
 from tada.graph.state import SectionDocumenterState
 from tada.llm.client import get_vertexai_gateway
 from tada.llm.configs import build_base_generation_config
@@ -66,6 +66,7 @@ def generate_section_documentation(
             kind=StepKind.SECTION,
             state=SectionState.GENERATING,
             attempts=0,
+            issues=(),
         )
     else:
         emit_graph_status(
@@ -164,6 +165,15 @@ def evaluate_section_documentation(state: SectionDocumenterState) -> dict[str, A
         response,
         label=f"{state['section'].value}:evaluate",
         elapsed=elapsed,
+    )
+
+    # Update graph status with any resulting issues / clear issues if there are none
+    emit_graph_status(
+        name=state["section"].value,
+        kind=StepKind.SECTION,
+        state=SectionState.EVALUATING,
+        attempts=state["generation_attempts"],
+        issues=issues_from_eval_result(evaluation),
     )
 
     return {"evaluation_history": [evaluation]}

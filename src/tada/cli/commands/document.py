@@ -5,18 +5,11 @@ import questionary
 import typer
 from questionary import Choice
 from rich.live import Live
-from rich.progress import (
-    BarColumn,
-    Progress,
-    SpinnerColumn,
-    TextColumn,
-    TimeElapsedColumn,
-)
 
 from tada.cli.commands._base import AppCommand
 from tada.cli.config import cli_config
 from tada.cli.display import (
-    build_graph_status_display,
+    GraphStatusDisplay,
     console,
     print_debug_notice,
     print_tada_banner,
@@ -30,7 +23,7 @@ from tada.cli.options import (
     WorkbookOpt,
 )
 from tada.domain.workbook import Workbook, WorkbookSection
-from tada.graph.events import GraphStatusEvent, GraphStatusStore, SectionState
+from tada.graph.events import GraphStatusEvent, GraphStatusStore
 from tada.graph.state import InputState
 from tada.graph.workflows.full_workbook import build_documentation_workflow
 
@@ -194,32 +187,23 @@ def run_document(
         "Invoking documentation graph...",
     )
 
-    console.print()
-    console.print("[bold]Documenting by Section[/bold]")
-
-    # TODO: this should be an emit in the first node I believe
-    # {(StepKind.SECTION, sec.value): Status() for sec in sections}
     statuses = GraphStatusStore()
+    display = GraphStatusDisplay(total_sections=len(sections))
 
-    progress = Progress(
-        SpinnerColumn(),
-        TextColumn("[progress.description]{task.description}"),
-        BarColumn(),
-        TextColumn("{task.completed}/{task.total} steps"),
-        TimeElapsedColumn(),
-    )
-    overall = progress.add_task("Documenting sections", total=len(sections))
-
+    console.print()
+    console.rule("[bold cyan]Run overview[/]", style="cyan")
+    console.print()
     with Live(
-        build_graph_status_display(statuses, progress),
+        display.build(statuses),
         refresh_per_second=10,
         console=console,
     ) as live:
 
         def refresh():
-            live.update(build_graph_status_display(statuses, progress))
+            live.update(display.build(statuses))
 
         documentation = None
+
         for chunk in workflow.stream(
             input=workflow_input,
             stream_mode=["custom", "values"],
@@ -229,11 +213,6 @@ def run_document(
             if chunk["type"] == "custom":
                 status_update: GraphStatusEvent = chunk["data"]
                 statuses.apply(status_update)
-
-                # TODO: progress bar should probably go in the build
-                # TODO: summary DONE is currently included
-                if status_update.status.state == SectionState.DONE:
-                    progress.advance(overall)
 
                 refresh()
 

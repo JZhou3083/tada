@@ -1,4 +1,4 @@
-from tada.graph.events import SectionState
+from tada.graph.events import IssueSeverity, SectionState
 
 SECTION_STATE_STYLE = {
     SectionState.PENDING: ("⏳", "grey50"),
@@ -7,4 +7,11 @@ SECTION_STATE_STYLE = {
     SectionState.RETRYING: ("🔄", "orange3"),
     SectionState.REACHED_RETRY_LIMIT: ("⚠️", "yellow3"),
     SectionState.DONE: ("✅", "green"),
+}
+
+
+ISSUE_SEVERITY_STYLE = {
+    IssueSeverity.ERROR: "red",
+    IssueSeverity.WARNING: "yellow",
+    IssueSeverity.INFO: "blue",
 }
