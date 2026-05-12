@@ -53,15 +53,12 @@ def summarize_all_sections_documentation(state: OverallState) -> OutputState:
             resources.files("tada") / "prompts" / "summariser.md"
         ).read_text(encoding="utf-8")
 
-        parts = [
-            {"text": summariser_prompt},
-            {"text": compiled_doc},
-        ]
-        contents = [{"role": "user", "parts": parts}]
-
         client_wrapper = get_vertexai_gateway()
 
         start = time.perf_counter()
+        contents = client_wrapper.contents_from_text_parts(
+            [summariser_prompt, compiled_doc]
+        )
         response, documentation_summary = client_wrapper.generate_text(
             model="gemini-3-flash-preview",
             contents=contents,

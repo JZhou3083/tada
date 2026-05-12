@@ -12,8 +12,11 @@ class VertexAIGateway:
         self.client = client
 
     @staticmethod
-    def contents_from_text_parts(text_parts: Iterable[str]) -> list[types.Part]:
-        return [types.Part.from_text(text=part) for part in text_parts]
+    def contents_from_text_parts(text_parts: Iterable[str]) -> types.Content:
+        return types.Content(
+            role="user",
+            parts=[types.Part.from_text(text=part) for part in text_parts],
+        )
 
     def generate_text(
         self,

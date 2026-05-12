@@ -86,25 +86,22 @@ def generate_section_documentation(
     if "evaluation_history" in state:
         full_prompt = _add_feedback_to_prompt(full_prompt, state["evaluation_history"])
 
-    parts = [
-        {"text": full_prompt},
-        {"text": state["response_template"]},
-        {"text": json.dumps(state["data"])},
-    ]
-    contents = [{"role": "user", "parts": parts}]
-
     client_wrapper = get_vertexai_gateway()
     system_instruction = (resources.files("tada") / "prompts" / "system.md").read_text(
         encoding="utf-8"
     )
 
     start = time.perf_counter()
+
+    contents = client_wrapper.contents_from_text_parts(
+        [full_prompt, state["response_template"], json.dumps(state["data"])]
+    )
     response, section_docs = client_wrapper.generate_text(
         model="gemini-3-flash-preview",
         contents=contents,
         config=build_base_generation_config(system_instruction=system_instruction),
     )
-    time.sleep(8)
+
     end = time.perf_counter()
     elapsed = end - start
 
@@ -142,17 +139,17 @@ def evaluate_section_documentation(state: SectionDocumenterState) -> dict[str, A
         resources.files("tada") / "prompts" / "evaluation.md"
     ).read_text(encoding="utf-8")
 
-    parts = [
-        {"text": evaluator_prompt},
-        {"text": json.dumps(state["data"])},
-        {"text": state["generated_section_doc"]},
-        {"text": state["response_template"]},
-    ]
-    contents = [{"role": "user", "parts": parts}]
-
     client_wrapper = get_vertexai_gateway()
 
     start = time.perf_counter()
+    contents = client_wrapper.contents_from_text_parts(
+        [
+            evaluator_prompt,
+            json.dumps(state["data"]),
+            state["generated_section_doc"],
+            state["response_template"],
+        ]
+    )
     response, evaluation = client_wrapper.generate_structured_response(
         model="gemini-3-flash-preview",
         contents=contents,
