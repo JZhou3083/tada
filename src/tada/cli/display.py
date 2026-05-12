@@ -152,17 +152,15 @@ class GraphStatusDisplay:
             padding=(0, 1),
         )
         tbl.add_column("Step", no_wrap=True, width=14)
-        tbl.add_column("", no_wrap=True, width=3)
         tbl.add_column("Status", no_wrap=True, width=24)
         tbl.add_column("Attempts", no_wrap=True, width=8)
         tbl.add_column("Issues", no_wrap=True, width=12)
 
         for sec_name, sec_status in statuses.sections.items():
-            icon, color = SECTION_STATE_STYLE[sec_status.state]
+            color = SECTION_STATE_STYLE[sec_status.state]
 
             tbl.add_row(
                 sec_name,
-                Text(icon, style=color, no_wrap=True),
                 Text(
                     sec_status.state.name.replace("_", " ").title(),
                     style=color,
