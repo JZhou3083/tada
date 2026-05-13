@@ -132,7 +132,6 @@ def _resolve_sections_arg(
         console.print("[yellow]Cancelled.")
         raise typer.Exit(code=0)
 
-
 def run_document(
     workbook_path: WorkbookOpt = None,
     output_path: OutputOpt = None,
@@ -172,9 +171,9 @@ def run_document(
             output_path=output_path,
             sections=sections,
             run_summary_step=run_summary_step,
+            all_sections=all_sections
         )
     )
-
 
 def _cmd_document(
     workbook_path: WorkbookOpt = None,
