@@ -201,7 +201,6 @@ def finalise_observability(*, run_id: str | None = None) -> None:
     trace_id = format(spans[0].context.trace_id, "032x")
     
     if not trace_id:
-        trace_id=run_id
         trace_id = run_id
     try:
         write_trace(spans=spans, run_id=trace_id)

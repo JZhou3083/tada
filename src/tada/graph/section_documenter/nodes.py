@@ -208,7 +208,7 @@ def evaluate_section_documentation(state: SectionDocumenterState) -> dict[str, A
                       metadata={"name": "documentation_quality",
                                 "section": state["section"].value,
                                 "result": evaluation.passed,
-                                "feedback":evaluation.feedback_for_generator,
+                                "feedback": evaluation.feedback_for_generator,
                                 "retry_count": state["generation_attempts"]
                                 }
     )

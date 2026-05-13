@@ -98,5 +98,4 @@ def summarize_all_sections_documentation(state: OverallState) -> OutputState:
 
     log_span(span=span)
     log_span(span=span)
-        "final_doc": "\n\n".join([p.rstrip() for p in [AI_NOTICE] + final_doc_parts])
     }
