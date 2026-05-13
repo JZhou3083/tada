@@ -1,4 +1,5 @@
 import logging
+from collections import Counter
 from pathlib import Path
 
 from rich.align import Align
@@ -195,7 +196,7 @@ class GraphStatusDisplay:
 
             table.add_row(
                 step_name,
-                Text(issue.severity.value.title(), style=style, no_wrap=True),
+                Text(issue.severity.name.title(), style=style, no_wrap=True),
                 issue.code or "-",
                 issue.message,
             )
@@ -258,14 +259,8 @@ class GraphStatusDisplay:
         issue: StatusIssue,
         section_order: dict[str, int],
     ) -> tuple[int, int, str, str]:
-        severity_order = {
-            IssueSeverity.ERROR: 0,
-            IssueSeverity.WARNING: 1,
-            IssueSeverity.INFO: 2,
-        }
-
         return (
-            severity_order.get(issue.severity, 99),
+            issue.severity,
             section_order.get(section_name, 999),
             issue.code or "",
             issue.message,
@@ -275,15 +270,7 @@ class GraphStatusDisplay:
         if not status.issues:
             return Text("-")
 
-        counts = {
-            IssueSeverity.ERROR: 0,
-            IssueSeverity.WARNING: 0,
-            IssueSeverity.INFO: 0,
-        }
-
-        for issue in status.issues:
-            if issue.severity in counts:
-                counts[issue.severity] += 1
+        counts = Counter(issue.severity for issue in status.issues)
 
         parts: list[Text] = []
 
@@ -294,13 +281,7 @@ class GraphStatusDisplay:
         if counts[IssueSeverity.INFO]:
             parts.append(Text(f"I:{counts[IssueSeverity.INFO]}", style="blue"))
 
-        result = Text(no_wrap=True)
-        for idx, part in enumerate(parts):
-            if idx > 0:
-                result.append(" ")
-            result.append(part)
-
-        return result
+        return Text(" ").join(parts) if parts else Text("-")
 
     def _sync_progress(self, statuses: GraphStatusStore) -> None:
         completed_sections = sum(

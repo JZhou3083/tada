@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from enum import StrEnum
+from enum import IntEnum, StrEnum
 
 from tada.llm.schemas import EvalResult
 
@@ -9,10 +9,10 @@ class StepKind(StrEnum):
     SUMMARY = "summary"
 
 
-class IssueSeverity(StrEnum):
-    INFO = "info"
-    WARNING = "warning"
-    ERROR = "error"
+class IssueSeverity(IntEnum):
+    INFO = 1
+    WARNING = 2
+    ERROR = 3
 
 
 class SectionState(StrEnum):
@@ -20,6 +20,7 @@ class SectionState(StrEnum):
     GENERATING = "generating"
     EVALUATING = "evaluating"
     RETRYING = "retrying"
+    SKIPPED = "skipped"
     FAILED = "failed"  # Currently unused but may help when catching other exceptions
     REACHED_RETRY_LIMIT = "reached_retry_limit"
     DONE = "done"
@@ -29,6 +30,7 @@ SECTION_COMPLETE_STATES = {
     SectionState.DONE,
     SectionState.FAILED,
     SectionState.REACHED_RETRY_LIMIT,
+    SectionState.SKIPPED,
 }
 
 

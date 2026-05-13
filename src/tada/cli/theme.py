@@ -8,6 +8,7 @@ SECTION_STATE_STYLE = {
     SectionState.REACHED_RETRY_LIMIT: "yellow3",
     SectionState.FAILED: "red",
     SectionState.DONE: "green",
+    SectionState.SKIPPED: "grey50",
 }
 
 
