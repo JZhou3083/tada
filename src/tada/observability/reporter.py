@@ -107,7 +107,7 @@ def write_spans_csv(spans: Iterable[ReadableSpan], *, run_id: str) -> Path:
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
 
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    csv_path = REPORT_DIR / f"spans_{run_id}_{timestamp}.csv"
+    csv_path = REPORT_DIR / f"spans_TaDA_{timestamp}.csv"
 
     with csv_path.open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=SPAN_HEADERS)
@@ -172,7 +172,7 @@ def write_trace_summary(spans: Iterable[ReadableSpan], *, run_id: str) -> Path:
 
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    path = REPORT_DIR / f"trace_{run_id}_{timestamp}.csv"
+    path = REPORT_DIR / f"trace_TaDA_{timestamp}.csv"
 
     with path.open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=TRACE_HEADERS)

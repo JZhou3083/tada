@@ -4,66 +4,63 @@
 > It reflects the structure and logic present in the source file at the time of generation and does not validate business intent, analytical correctness, or data quality.
 > Dashboard owners remain responsible for review and approval.
 
-# Workbook Summary: E-commerce Dataset Analysis
+# Workbook Summary: E-Commerce Sales Analysis
 
 ### Section 1 — Workbook Overview
-This workbook provides a comprehensive analysis of e-commerce performance, focusing on customer behavior, product trends, and financial metrics. It is designed to support a user journey that begins with high-level executive KPIs and transitions into granular product-level exploration. The workbook is structured around two primary dashboards supported by a unified data model, utilizing 14 filter actions and 6 parameter actions to drive interactivity.
+This workbook provides a comprehensive analysis of e-commerce sales performance, focusing on customer behavior, product trends, and financial metrics. It is designed to support a user journey that begins with high-level executive KPIs and transitions into granular product-level performance. The workbook is structured around two primary dashboards and utilizes a star-schema data model to facilitate multi-fact analysis across demographics and product categories.
 
 **Workbook Scale:**
-*   **Dashboards:** 2
-*   **Data Sources:** 1 (Federated Extract)
-*   **Parameters:** 5
-*   **Total Actions:** 20
+*   **Dashboards:** 2 (Dashboard, Product)
+*   **Data Sources:** 1 Federated Extract
+*   **Total Parameters:** 5
+*   **Total Actions:** 20 (14 Filter, 6 Parameter)
 
 ### Section 2 — Dashboards & Analytical Flow
-The analytical experience is divided into two distinct stages: broad performance monitoring and specific product deep-dives. The **Dashboard** serves as the primary entry point, focusing on core business health through metrics like Revenue, Quantity, and Average Order Value (AOV). Users can explore trends such as Gross vs. Net performance and Revenue vs. Customers. The **Product** dashboard provides a more specialized view, allowing users to analyze performance across demographics (Age Band, Country) and purchasing behavior (Channel, Segment, Payment Method). Navigation is seamless, as selecting marks on summary worksheets automatically filters the broader dashboard view to isolate specific segments or timeframes.
+The analytical experience is divided into two distinct stages. The first dashboard serves as a summary view, focusing on core business health through metrics like Revenue, Quantity, and Average Order Value (AOV). It allows users to identify broad trends in gross versus net performance and customer acquisition. The second dashboard, "Product," provides a deep dive into specific inventory performance, allowing for segmentation by age band, country, and payment method. Navigation is driven by selection-based filters that allow users to isolate specific data points across all related worksheets.
 
 ### Section 3 — Datasources & Data Model
-The workbook relies on a single federated data source containing three logical tables. The data is stored as a Hyper extract derived from an Excel connection, ensuring optimized performance for interactive filtering.
+The workbook relies on a single federated data source containing an extract of e-commerce data. The model uses logical relationships to connect a central events table with dimension tables for customers and products.
 
-**Data Source Summary**
+**Datasource Summary**
 | Data Source | Type | Extract | Tables |
 | :--- | :--- | :--- | :--- |
 | Customers (DataDNA Dataset Challenge) | Federated | Yes | 3 |
 
 **Key Relationships**
-| Left Table | Right Table | Key |
+| Left Table | Right Table | Relationship Key |
 | :--- | :--- | :--- |
 | Events | Customers | [customer_id] = [customer_id (Customers)] |
 | Events | Products | [product_id] = [product_id (Products)] |
 
-The model uses a star-schema-like logical structure where the **Events** table acts as the central fact table, linked to **Customers** and **Products** dimensions via their respective identifiers.
-
 ### Section 4 — Interaction Behaviour (Actions & Parameters)
-Interactivity is driven by a combination of global filter actions and targeted parameter updates. The workbook employs a "select-to-filter" pattern where clicking on a chart element updates all other visualizations on the dashboard.
+Interactions are highly automated, using "on-select" triggers to filter data and update parameters dynamically. The "Dashboard" view uses global filter actions to synchronize worksheets, while the "Product" view employs parameter actions to switch between different metrics and visibility states.
 
-**Workbook Interaction Statistics**
+**Workbook Interaction Stats**
 | Action Type | Count | Primary Behavior |
 | :--- | :--- | :--- |
-| Filter Actions | 14 | On-select activation with auto-clear on deselect. |
-| Parameter Actions | 6 | Updates metrics, product selection, and UI visibility. |
+| Filter Actions | 14 | Selection-based filtering with auto-clearing on deselect. |
+| Parameter Actions | 6 | Dynamic updates for Product Name, Metrics, and Show/Hide toggles. |
 
-Key interaction patterns include:
-*   **Dynamic Metric Switching:** Users can toggle the entire view between Revenue, Quantity, and Customer counts using the Metric Selector.
-*   **Product Selection:** A dedicated parameter action allows users to update the "Product Name Parameter" by selecting items from a list, which then propagates through the Product dashboard.
-*   **UI Control:** Parameters are used to toggle the visibility of specific elements (Show/Hide) to manage dashboard real estate.
+*   **Metric Switching:** Users can toggle the entire view between Revenue, Quantity, and Customer counts using the Metric Selector.
+*   **Time Intelligence:** A date parameter allows users to filter the entire workbook by preset ranges, such as Last 7 Days or Year to Date.
+*   **Product Selection:** Selecting a product in a worksheet updates a global parameter to refocus the dashboard on that specific item.
 
 ### Section 5 — Complexity & Maintenance Notes
-The workbook demonstrates a highly standardized design pattern, particularly in its use of generated filter actions that target all fields. Maintenance is simplified by the use of a single extract and a logical relationship model, which avoids the complexity of physical joins. 
+The workbook features a high degree of interactivity through 20 distinct actions, requiring consistent naming conventions for maintenance. The data model is efficient, utilizing a Hyper extract and logical relationships rather than physical joins. 
 
-**Key Observations:**
-*   **Parameter Dependency:** The workbook relies heavily on five parameters to control date ranges (Last 7 to 90 days), metric types, and product-specific filtering.
-*   **Consistent Action Logic:** All 14 filter actions are configured to "auto-clear," ensuring the dashboard returns to a default state when selections are removed.
-*   **Standardized Dimensions:** Analysis is consistently broken down by a fixed set of dimensions including Category, Segment, and Country across both dashboards.
+*   **Parameter Dependency:** The workbook relies heavily on string and integer parameters to drive logic in the "Product" dashboard.
+*   **Standardized Filtering:** All 14 filter actions are configured to "auto-clear," ensuring the dashboard returns to a default state when selections are removed.
+*   **Categorical Depth:** The Product Name parameter contains over 100 members, supporting a wide variety of software and subscription types.
 
 # Data Sources Documentation
 
 ### Covers connections, tables, relationships, filters, and extract settings
 
 ## 1. Workbook Data Source Summary
-The workbook contains a single federated data source named Customers (DataDNA Dataset Challenge - E-commerce Dataset - November 2025). This data source is configured as an extract using the Hyper storage engine, derived from an Excel connection.
 
-The data model consists of three logical tables: Events, Customers, and Products. These tables are connected via logical relationships rather than physical joins, using customer and product identifiers to link the event data to its respective dimensions.
+The workbook utilizes a single federated data source named Customers (DataDNA Dataset Challenge - E-commerce Dataset - November 2025), which connects to an Excel workbook. The data layer is configured as an extract stored in a Hyper file, containing three logical tables: Events, Customers, and Products.
+
+The data model is structured using logical relationships centered around the Events table. It connects to the Customers table via the customer_id field and to the Products table via the product_id field. This star-schema-like configuration allows for multi-fact analysis across customer demographics and product details.
 
 #### Datasources
 | Data Source | Type | Extract | Tables |
@@ -84,17 +81,23 @@ The data model consists of three logical tables: Events, Customers, and Products
 
 **Source type:** federated
 **Live or Extract:** extract  
+**Connection details:**
+
+- Server or Host: None
+- Project or Database: Data/TableauTemp/TEMP_0xfnzak033ztnc13wohgv0xghqq0.hyper
+- Schema or Dataset: Extract
+- Authentication: auth-none
 
 **Extract options:**
 
-- Storage: hyper
-- File path or name: Data/TableauTemp/TEMP_0xfnzak033ztnc13wohgv0xghqq0.hyper
+- Storage: .hyper
+- File path or name: C:/Users/VICTORY/AppData/Local/Temp/TableauTemp/0wbta9m1dzjgs612e5y3n1fd1k6y/E-Commerce (Software) Sales Dashboard.twb Files/federated.hyper
 - Incremental refresh field: None
 - Aggregate for visible dimensions: false
 - Date rollup granularity: None
 - Extract filters count: 0
 
-**Data source filters count:** 0
+**Data source filters count: 0**
 
 **Number of tables:** 3
 
@@ -102,7 +105,7 @@ The data model consists of three logical tables: Events, Customers, and Products
 
 ##### Table: Events
 - Type: logical
-- Physical name: Events
+- Physical name: [Events$]
 - Qualified identifier: [Events$]
 - Catalog or Project: None
 - Schema or Dataset: None
@@ -110,7 +113,7 @@ The data model consists of three logical tables: Events, Customers, and Products
 
 ##### Table: Customers
 - Type: logical
-- Physical name: Customers
+- Physical name: [Customers$]
 - Qualified identifier: [Customers$]
 - Catalog or Project: None
 - Schema or Dataset: None
@@ -118,7 +121,7 @@ The data model consists of three logical tables: Events, Customers, and Products
 
 ##### Table: Products
 - Type: logical
-- Physical name: Products
+- Physical name: [Products$]
 - Qualified identifier: [Products$]
 - Catalog or Project: None
 - Schema or Dataset: None
@@ -165,7 +168,7 @@ The data model consists of three logical tables: Events, Customers, and Products
 ### Dashboard: Dashboard
 
 **Summary:**
-The Dashboard contains 6 filter actions that facilitate interactive data exploration. These actions are triggered by selecting marks on various worksheets, including Revenue, Quantity, AOV, Avg. Days to 2nd Purchase, Gross vs. Net, and Revenue vs. Customers. Each action is configured to filter all relevant fields across the dashboard and automatically clears the filter when the selection is removed.
+The Dashboard contains 6 actions, all of which are filter actions. These interactions are triggered on selection from various worksheets including Revenue, Quantity, AOV, Avg. Days to 2nd Purchase, Gross vs. Net, and Revenue vs. Customers. Each action is configured to target the Dashboard itself and automatically clears when the selection is removed.
 
 **Action Counts:**
 | Action Type | Count |
@@ -251,7 +254,7 @@ The Dashboard contains 6 filter actions that facilitate interactive data explora
 ### Dashboard: Product
 
 **Summary:**
-The Product dashboard features a complex interaction model consisting of 8 filter actions and 6 parameter actions. The filter actions allow users to drill down into data via worksheets such as Age Band, Country, Channel, and Segment. The parameter actions enable dynamic updates to workbook parameters, including Product Name Parameter and various metric selectors, allowing for a highly customizable view of product performance and metrics.
+The Product dashboard features a total of 14 actions, consisting of 8 filter actions and 6 parameter actions. The filter actions originate from worksheets such as Age Band, Country, Channel, and Segment, targeting the Product dashboard. The parameter actions allow for dynamic updates to Product Name Parameter, Parameter 3, and Parameter 2 based on selections in the Select Products, Show, Hide, and Metric Selector worksheets.
 
 **Action Counts:**
 | Action Type | Count |

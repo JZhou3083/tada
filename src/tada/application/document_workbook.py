@@ -5,6 +5,7 @@ from pathlib import Path
 from tada.application.graph_runner import run_graph_with_status
 from tada.application.ports import NullStatusSink, StatusSink
 from tada.cli.config import cli_config
+from tada.cli.options import AllSectionsOpt
 from tada.domain.sections import WorkbookSection
 from tada.domain.workbook import Workbook
 from tada.graph.workbook_documenter.graph import build_documentation_workflow
@@ -35,7 +36,7 @@ class DocumentWorkbookResult:
     output_path: Path
     final_doc: str
 
-
+@observe(name="documentation_workflow")
 def document_workbook(
     request: DocumentWorkbookRequest,
     *,
@@ -66,16 +67,26 @@ def document_workbook(
         "Invoking documentation graph...",
     )
 
-    final_state = run_graph_with_status(
-        graph=workflow,
-        input_state={
-            "workbook": workbook,
-            "generation_plan": request.sections,
-            "run_summary_step": request.run_summary_step,
-        },
-        status_sink=sink,
-    )
-    final_doc = final_state["final_doc"]
+    with propagate_attributes(
+                metadata={
+                    "workflow": "documentation",
+                    "version": "v1",
+                    "section.count": str(len(request.sections)),
+                    "workbook": workbook_name,
+                    "sections": section_hint,
+                    "env": "dev"
+                }
+            ):
+        final_state = run_graph_with_status(
+            graph=workflow,
+            input_state={
+                "workbook": workbook,
+                "generation_plan": request.sections,
+                "run_summary_step": request.run_summary_step,
+            },
+            status_sink=sink,
+        )
+        final_doc = final_state["final_doc"]
 
     logger.debug("Graph complete.")
 

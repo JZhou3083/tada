@@ -39,7 +39,7 @@ def write_trace(spans: list[ReadableSpan], run_id: str = None) -> Path:
     first_ctx = spans[0].context
     run_id = run_id or (format(first_ctx.trace_id, "032x")[:8] if first_ctx else "unknown")
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    trace_path = TRACE_DIR / f"trace_{run_id}_{timestamp}.json"
+    trace_path = TRACE_DIR / f"trace_TaDA_{timestamp}.json"
     
     output = {
         "run_id": run_id,
