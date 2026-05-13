@@ -5,7 +5,7 @@ from typing import Annotated, Callable, Sequence
 
 import typer
 
-from tada.domain.workbook import WorkbookSection
+from tada.domain.sections import WorkbookSection
 
 
 def make_suffix_validator(

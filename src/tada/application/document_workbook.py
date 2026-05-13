@@ -6,13 +6,14 @@ from rich.live import Live
 
 from tada.cli.config import cli_config
 from tada.cli.display.console import console
-from tada.cli.display.status import (
+from tada.cli.display.graph_status import (
     GraphStatusDisplay,
 )
-from tada.domain.workbook import Workbook, WorkbookSection
+from tada.domain.sections import WorkbookSection
+from tada.domain.workbook import Workbook
 from tada.graph.events import GraphStatusEvent, GraphStatusStore
-from tada.graph.state import InputState
-from tada.graph.workflows.full_workbook import build_documentation_workflow
+from tada.graph.workbook_documenter.graph import build_documentation_workflow
+from tada.graph.workbook_documenter.state import InputState
 
 logger = logging.getLogger(__name__)
 

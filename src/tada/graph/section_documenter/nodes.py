@@ -12,8 +12,8 @@ from tada.graph.events import (
     StepKind,
     issues_from_eval_result,
 )
-from tada.graph.nodes.helpers import emit_graph_status
-from tada.graph.state import (
+from tada.graph.helpers import emit_graph_status
+from tada.graph.section_documenter.state import (
     SectionDocumenterInput,
     SectionDocumenterState,
     get_latest_eval_result,

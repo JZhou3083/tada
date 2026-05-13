@@ -24,7 +24,7 @@ from tada.cli.options import (
     SectionOpt,
     WorkbookOpt,
 )
-from tada.domain.workbook import WorkbookSection
+from tada.domain.sections import WorkbookSection
 
 logger = logging.getLogger(__name__)
 

@@ -1,13 +1,11 @@
 import logging
-from enum import StrEnum
-from typing import Literal
 
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
-from tada.graph.config import MAX_SECTION_ATTEMPTS
-from tada.graph.nodes.section import (
+from tada.graph.section_documenter.ids import SectionNodeId
+from tada.graph.section_documenter.nodes import (
     emit_section_documentation,
     emit_section_documentation_retry_limit,
     emit_section_documentation_skipped,
@@ -15,63 +13,17 @@ from tada.graph.nodes.section import (
     generate_section_documentation,
     prepare_section,
 )
-from tada.graph.state import (
+from tada.graph.section_documenter.routing import (
+    route_after_precheck,
+    route_evaluation_results,
+)
+from tada.graph.section_documenter.state import (
     SectionDocumenterInput,
     SectionDocumenterOutput,
     SectionDocumenterState,
-    get_latest_eval_result,
 )
 
 logger = logging.getLogger(__name__)
-
-
-class SectionNodeId(StrEnum):
-    PREPARE_SECTION = "prepare_section"
-    GENERATE_SECTION_DOCS = "generate_section_docs"
-    EVALUATE_SECTION_DOCS = "evaluate_section_docs"
-    EMIT_SECTION_DOCS = "emit_section_docs"
-    EMIT_SECTION_DOCS_AFTER_RETRY_LIMIT = "emit_section_docs_after_retry_limit"
-    EMIT_SECTION_DOCS_SKIPPED = "emit_section_docs_skipped"
-
-
-def route_after_precheck(state: SectionDocumenterState) -> Literal["skip", "generate"]:
-    return "skip" if state.get("skip_section") else "generate"
-
-
-def route_evaluation_results(
-    state: SectionDocumenterState,
-) -> Literal["emit", "emit_with_issues", "retry"]:
-    latest_eval = get_latest_eval_result(state)
-    if latest_eval is None:
-        raise ValueError("No evaluation to route")
-
-    if latest_eval.passed:
-        logger.debug(
-            "Emitting documentation for %s attempt=%d non_blocking_issues=%d",
-            state["section"].value,
-            state["generation_attempts"],
-            len(latest_eval.non_blocking_issues),
-        )
-        return "emit"
-
-    elif state["generation_attempts"] > MAX_SECTION_ATTEMPTS:
-        logger.debug(
-            "Hit maximum attempts for %s attempt=%d blocking_issues=%d non_blocking_issues=%d",
-            state["section"].value,
-            state["generation_attempts"],
-            len(latest_eval.blocking_issues),
-            len(latest_eval.non_blocking_issues),
-        )
-        return "emit_with_issues"
-
-    logger.debug(
-        "Retrying documentation for %s attempt=%d blocking_issues=%d non_blocking_issues=%d",
-        state["section"].value,
-        state["generation_attempts"],
-        len(latest_eval.blocking_issues),
-        len(latest_eval.non_blocking_issues),
-    )
-    return "retry"
 
 
 def build_section_documenter_subgraph(

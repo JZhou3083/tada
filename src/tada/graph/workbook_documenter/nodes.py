@@ -2,11 +2,11 @@ import logging
 import time
 from importlib import resources
 
-from tada.domain.workbook import WorkbookSection
+from tada.domain.sections import WorkbookSection
 from tada.graph.config import AI_NOTICE
 from tada.graph.events import SectionState
-from tada.graph.nodes.helpers import StepKind, emit_graph_status
-from tada.graph.state import OutputState, OverallState
+from tada.graph.helpers import StepKind, emit_graph_status
+from tada.graph.workbook_documenter.state import OutputState, OverallState
 from tada.llm.client import get_vertexai_gateway
 from tada.llm.configs import build_base_generation_config
 from tada.llm.telemetry import log_genai_usage
