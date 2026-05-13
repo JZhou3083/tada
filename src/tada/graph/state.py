@@ -27,6 +27,9 @@ class OverallState(InputState, OutputState):
     ]
 
 
+# --- Section subgraph ---
+
+
 class SectionDocumenterInput(TypedDict):
     section: WorkbookSection
     data: dict[str, Any]
@@ -43,3 +46,10 @@ class SectionDocumenterState(SectionDocumenterInput, SectionDocumenterOutput):
     generation_attempts: int
     generated_section_doc: str
     evaluation_history: Annotated[list[EvalResult], operator.add]
+
+
+def get_latest_eval_result(
+    state: SectionDocumenterState,
+) -> EvalResult | None:
+    history = state.get("evaluation_history", [])
+    return history[-1] if history else None

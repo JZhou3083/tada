@@ -19,6 +19,7 @@ from tada.graph.state import (
     SectionDocumenterInput,
     SectionDocumenterOutput,
     SectionDocumenterState,
+    get_latest_eval_result,
 )
 
 logger = logging.getLogger(__name__)
@@ -29,7 +30,7 @@ class SectionNodeId(StrEnum):
     GENERATE_SECTION_DOCS = "generate_section_docs"
     EVALUATE_SECTION_DOCS = "evaluate_section_docs"
     EMIT_SECTION_DOCS = "emit_section_docs"
-    EMIT_SECTION_DOCS_WITH_ISSUES = "emit_section_docs_with_issues"
+    EMIT_SECTION_DOCS_AFTER_RETRY_LIMIT = "emit_section_docs_after_retry_limit"
     EMIT_SECTION_DOCS_SKIPPED = "emit_section_docs_skipped"
 
 
@@ -40,10 +41,9 @@ def route_after_precheck(state: SectionDocumenterState) -> Literal["skip", "gene
 def route_evaluation_results(
     state: SectionDocumenterState,
 ) -> Literal["emit", "emit_with_issues", "retry"]:
-    if "evaluation_history" not in state:
+    latest_eval = get_latest_eval_result(state)
+    if latest_eval is None:
         raise ValueError("No evaluation to route")
-
-    latest_eval = state["evaluation_history"][-1]
 
     if latest_eval.passed:
         logger.debug(
@@ -93,7 +93,7 @@ def build_section_documenter_subgraph(
     )
     builder.add_node(SectionNodeId.EMIT_SECTION_DOCS, emit_section_documentation)
     builder.add_node(
-        SectionNodeId.EMIT_SECTION_DOCS_WITH_ISSUES,
+        SectionNodeId.EMIT_SECTION_DOCS_AFTER_RETRY_LIMIT,
         emit_section_documentation_retry_limit,
     )
     builder.add_node(
@@ -118,12 +118,12 @@ def build_section_documenter_subgraph(
         route_evaluation_results,
         {
             "emit": SectionNodeId.EMIT_SECTION_DOCS,
-            "emit_with_issues": SectionNodeId.EMIT_SECTION_DOCS_WITH_ISSUES,
+            "emit_with_issues": SectionNodeId.EMIT_SECTION_DOCS_AFTER_RETRY_LIMIT,
             "retry": SectionNodeId.GENERATE_SECTION_DOCS,
         },
     )
     builder.add_edge(SectionNodeId.EMIT_SECTION_DOCS, END)
-    builder.add_edge(SectionNodeId.EMIT_SECTION_DOCS_WITH_ISSUES, END)
+    builder.add_edge(SectionNodeId.EMIT_SECTION_DOCS_AFTER_RETRY_LIMIT, END)
     builder.add_edge(SectionNodeId.EMIT_SECTION_DOCS_SKIPPED, END)
 
     workflow = builder.compile(checkpointer=checkpointer)

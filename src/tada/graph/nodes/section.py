@@ -13,7 +13,11 @@ from tada.graph.events import (
     issues_from_eval_result,
 )
 from tada.graph.nodes.helpers import emit_graph_status
-from tada.graph.state import SectionDocumenterInput, SectionDocumenterState
+from tada.graph.state import (
+    SectionDocumenterInput,
+    SectionDocumenterState,
+    get_latest_eval_result,
+)
 from tada.llm.client import get_vertexai_gateway
 from tada.llm.configs import build_base_generation_config
 from tada.llm.schemas import EvalResult
@@ -198,11 +202,42 @@ def evaluate_section_documentation(state: SectionDocumenterState) -> dict[str, A
     return {"evaluation_history": [evaluation]}
 
 
+def format_blocking_issues_header(eval_result: EvalResult | None) -> str | None:
+    if eval_result is None or not eval_result.blocking_issues:
+        return None
+
+    lines = [
+        "> [!WARNING]",
+        "> This section was emitted with unresolved blocking issues from the latest evaluation.",
+        ">",
+        "> Blocking issues:",
+    ]
+
+    for issue in eval_result.blocking_issues:
+        lines.append(f"> - `{issue.type}`: {issue.item}")
+
+    return "\n".join(lines)
+
+
+def add_blocking_issues_header(
+    *,
+    doc: str,
+    eval_result: EvalResult | None,
+) -> str:
+    header = format_blocking_issues_header(eval_result)
+
+    if not header:
+        return doc
+
+    return f"{header}\n\n{doc}"
+
+
 def _emit_section_documentation_generic(
     state: SectionDocumenterState,
     *,
     final_state: SectionState = SectionState.DONE,
     require_doc: bool = True,
+    include_blocking_issues_header: bool = False,
 ) -> dict[str, Any]:
     """Format results of documentation into a state update to remerge back into the parent branch"""
     section = state["section"]
@@ -218,16 +253,23 @@ def _emit_section_documentation_generic(
 
     doc = state.get("generated_section_doc")
 
-    if doc is None and require_doc:
-        raise ValueError(
-            "Cannot emit section documentation because generated_section_doc is missing. "
-            f"section={section.value}, attempts={attempts}, final_state={final_state}"
+    if doc is None:
+        if require_doc:
+            raise ValueError(
+                "Cannot emit section documentation because generated_section_doc is missing. "
+                f"section={section.value}, attempts={attempts}, final_state={final_state}"
+            )
+        return {
+            "docs_by_section": {},
+        }
+
+    if include_blocking_issues_header:
+        doc = add_blocking_issues_header(
+            doc=doc,
+            eval_result=get_latest_eval_result(state),
         )
 
-    # TODO: add warnings to top of section documentation? Consider an arg which is "show issues above this level of severity"
-    return {
-        "docs_by_section": {section: doc} if doc is not None else {},
-    }
+    return {"docs_by_section": {section: doc}}
 
 
 emit_section_documentation = partial(
@@ -238,6 +280,7 @@ emit_section_documentation = partial(
 emit_section_documentation_retry_limit = partial(
     _emit_section_documentation_generic,
     final_state=SectionState.REACHED_RETRY_LIMIT,
+    include_blocking_issues_header=True,
 )
 
 emit_section_documentation_skipped = partial(
