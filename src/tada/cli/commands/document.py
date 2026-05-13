@@ -4,6 +4,7 @@ from pathlib import Path
 import questionary
 import typer
 from questionary import Choice
+from rich.live import Live
 
 from tada.application.document_workbook import (
     DocumentWorkbookRequest,
@@ -16,6 +17,8 @@ from tada.cli.display.banners import (
     print_tada_banner,
 )
 from tada.cli.display.console import console
+from tada.cli.display.documentation_progress import DocumentationProgressDisplay
+from tada.cli.display.documentation_progress_sink import RichDocumentationProgressSink
 from tada.cli.input import ask_for_file_path
 from tada.cli.options import (
     AllSectionsOpt,
@@ -25,6 +28,7 @@ from tada.cli.options import (
     WorkbookOpt,
 )
 from tada.domain.sections import WorkbookSection
+from tada.graph.events import GraphStatusStore
 
 logger = logging.getLogger(__name__)
 
@@ -165,15 +169,27 @@ def run_document(
     #     "Choose whether to enable evaluation if 0 retries?"
     # )
 
-    document_workbook(
-        request=DocumentWorkbookRequest(
-            workbook_path=workbook_path,
-            output_path=output_path,
-            sections=sections,
-            run_summary_step=run_summary_step,
-            all_sections=all_sections
-        )
+    request = DocumentWorkbookRequest(
+        workbook_path=workbook_path,
+        output_path=output_path,
+        sections=sections,
+        run_summary_step=run_summary_step,
     )
+    status_store = GraphStatusStore.from_sections([s.value for s in sections])
+    display = DocumentationProgressDisplay(total_sections=len(sections))
+
+    with Live(
+        display.render(status_store), console=console, refresh_per_second=8
+    ) as live:
+        sink = RichDocumentationProgressSink(
+            display=display, store=status_store, live=live
+        )
+        result = document_workbook(
+            request,
+            status_sink=sink,
+        )
+
+    console.print(f"[green]Documentation written to {result.output_path}[/green]")
 
 def _cmd_document(
     workbook_path: WorkbookOpt = None,

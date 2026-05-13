@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 from enum import IntEnum, StrEnum
+from typing import Iterable, Self
 
 from tada.llm.schemas import EvalResult
 
@@ -95,6 +96,10 @@ class GraphStatusStore:
             else current.attempts,
             issues=update.issues if update.issues is not None else current.issues,
         )
+
+    @classmethod
+    def from_sections(cls, sections: Iterable[str]) -> Self:
+        return cls(sections={s: Status() for s in sections})
 
 
 def issues_from_eval_result(eval_result: EvalResult) -> tuple[StatusIssue, ...]:
