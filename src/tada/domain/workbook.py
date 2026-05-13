@@ -2,13 +2,12 @@ from __future__ import annotations
 
 import json
 from enum import StrEnum
-from functools import lru_cache
-from importlib import resources
 from pathlib import Path
 from typing import Any, Self
 
 from pydantic import BaseModel, ConfigDict
 
+from tada.prompts.loader import load_section_documentation_prompts
 from tada.tableau.extractors import (
     extract_actions,
     extract_calculations,
@@ -20,18 +19,6 @@ from tada.tableau.extractors import (
 )
 from tada.tableau.loader import load_workbook_xml
 from tada.tableau.xml.prune import drop_xpaths
-
-SECTIONS_PKG = "tada.prompts.sections"
-
-
-@lru_cache(maxsize=None)
-def load_section_documentation_prompts(section: WorkbookSection) -> tuple[str, str]:
-    root = resources.files(SECTIONS_PKG)
-    prompt = (root / f"{section.value}.prompt.md").read_text(encoding="utf-8")
-    response_template = (root / f"{section.value}.response_template.md").read_text(
-        encoding="utf-8"
-    )
-    return prompt, response_template
 
 
 class WorkbookSection(StrEnum):
