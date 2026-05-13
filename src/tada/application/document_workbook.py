@@ -1,0 +1,104 @@
+import logging
+from dataclasses import dataclass
+from pathlib import Path
+
+from rich.live import Live
+
+from tada.cli.config import cli_config
+from tada.cli.display import (
+    GraphStatusDisplay,
+    console,
+)
+from tada.domain.workbook import Workbook, WorkbookSection
+from tada.graph.events import GraphStatusEvent, GraphStatusStore
+from tada.graph.state import InputState
+from tada.graph.workflows.full_workbook import build_documentation_workflow
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class DocumentWorkbookRequest:
+    workbook_path: Path
+    output_path: Path
+    sections: list[WorkbookSection]
+    run_summary_step: bool = True
+
+
+@dataclass(frozen=True)
+class DocumentWorkbookResult:
+    output_path: Path
+    final_doc: str
+
+
+def document_workbook(request: DocumentWorkbookRequest) -> DocumentWorkbookResult:
+    """Generate Markdown documentation for a Tableau workbook.
+
+    This function resolves invokes the documentation workflow, and writes the generated
+    documentation to disk.
+    """
+
+    # Pre-process the workbook using our pre-existing XML -> JSON parsing approach
+    logger.debug("Parsing workbook: %s", request.workbook_path)
+    workbook = Workbook.from_file(request.workbook_path)
+    logger.debug("Parsed workbook.")
+
+    if cli_config.debug:
+        workbook.write_debug(cli_config.debug_dir)
+        logger.debug("Wrote parsed workbook contents to %s", cli_config.debug_dir)
+
+    workflow = build_documentation_workflow()
+    workflow_input = InputState(
+        workbook=workbook,
+        generation_plan=request.sections,
+        run_summary_step=request.run_summary_step,
+    )
+
+    logger.debug(
+        "Invoking documentation graph...",
+    )
+
+    statuses = GraphStatusStore()
+    display = GraphStatusDisplay(total_sections=len(request.sections))
+
+    with Live(
+        display.build(statuses),
+        refresh_per_second=10,
+        console=console,
+    ) as live:
+
+        def refresh():
+            live.update(display.build(statuses))
+
+        documentation = None
+
+        for chunk in workflow.stream(
+            input=workflow_input,
+            stream_mode=["custom", "values"],
+            subgraphs=True,
+            version="v2",
+        ):
+            if chunk["type"] == "custom":
+                status_update: GraphStatusEvent = chunk["data"]
+                statuses.apply(status_update)
+
+                refresh()
+
+            elif chunk["type"] == "values":
+                documentation: str | None = chunk["data"].get("final_doc")
+
+    logger.debug("Graph complete.")
+
+    if not documentation:
+        raise ValueError("Expected key `final_doc` not found in graph output")
+
+    request.output_path.write_text(documentation)
+
+    console.print(
+        f"[green]✔[/green] Documentation exported → {request.output_path.name}"
+    )
+
+    return DocumentWorkbookResult(
+        output_path=request.output_path,
+        final_doc=documentation,
+    )

@@ -4,12 +4,14 @@ from pathlib import Path
 import questionary
 import typer
 from questionary import Choice
-from rich.live import Live
 
+from tada.application.document_workbook import (
+    DocumentWorkbookRequest,
+    document_workbook,
+)
 from tada.cli.commands._base import AppCommand
 from tada.cli.config import cli_config
 from tada.cli.display import (
-    GraphStatusDisplay,
     console,
     print_debug_notice,
     print_tada_banner,
@@ -22,10 +24,7 @@ from tada.cli.options import (
     SectionOpt,
     WorkbookOpt,
 )
-from tada.domain.workbook import Workbook, WorkbookSection
-from tada.graph.events import GraphStatusEvent, GraphStatusStore
-from tada.graph.state import InputState
-from tada.graph.workflows.full_workbook import build_documentation_workflow
+from tada.domain.workbook import WorkbookSection
 
 logger = logging.getLogger(__name__)
 
@@ -157,7 +156,7 @@ def run_document(
     workbook_path = _resolve_workbook_arg(workbook_path)
     output_path = _resolve_output_arg(output_path, workbook_path)
     sections = _resolve_sections_arg(sections, all_sections)
-    include_summary = questionary.confirm(
+    run_summary_step = questionary.confirm(
         "Include a top-level summary of selected sections?"
     ).ask()
     # max_retries = questionary.select(
@@ -167,63 +166,14 @@ def run_document(
     #     "Choose whether to enable evaluation if 0 retries?"
     # )
 
-    # Pre-process the workbook using our pre-existing XML -> JSON parsing approach
-    logger.debug("Parsing workbook: %s", workbook_path)
-    workbook = Workbook.from_file(workbook_path)
-    logger.debug("Parsed workbook.")
-
-    if cli_config.debug:
-        workbook.write_debug(cli_config.debug_dir)
-        logger.debug("Wrote parsed workbook contents to %s", cli_config.debug_dir)
-
-    workflow = build_documentation_workflow()
-    workflow_input = InputState(
-        workbook=workbook,
-        generation_plan=sections,
-        run_summary_step=include_summary,
+    document_workbook(
+        request=DocumentWorkbookRequest(
+            workbook_path=workbook_path,
+            output_path=output_path,
+            sections=sections,
+            run_summary_step=run_summary_step,
+        )
     )
-
-    logger.debug(
-        "Invoking documentation graph...",
-    )
-
-    statuses = GraphStatusStore()
-    display = GraphStatusDisplay(total_sections=len(sections))
-
-    with Live(
-        display.build(statuses),
-        refresh_per_second=10,
-        console=console,
-    ) as live:
-
-        def refresh():
-            live.update(display.build(statuses))
-
-        documentation = None
-
-        for chunk in workflow.stream(
-            input=workflow_input,
-            stream_mode=["custom", "values"],
-            subgraphs=True,
-            version="v2",
-        ):
-            if chunk["type"] == "custom":
-                status_update: GraphStatusEvent = chunk["data"]
-                statuses.apply(status_update)
-
-                refresh()
-
-            elif chunk["type"] == "values":
-                documentation: str | None = chunk["data"].get("final_doc")
-
-    logger.debug("Graph complete.")
-
-    if not documentation:
-        raise ValueError("Expected key `final_doc` not found in graph output")
-
-    output_path.write_text(documentation)
-
-    console.print(f"[green]✔[/green] Documentation exported → {output_path.name}")
 
 
 def _cmd_document(
