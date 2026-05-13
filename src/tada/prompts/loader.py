@@ -3,7 +3,7 @@ from __future__ import annotations
 from functools import lru_cache
 from importlib import resources
 
-from tada.domain.workbook import WorkbookSection
+from tada.domain.sections import WorkbookSection
 
 SECTIONS_PKG = "tada.prompts.sections"
 

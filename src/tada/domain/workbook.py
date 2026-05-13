@@ -1,13 +1,11 @@
 from __future__ import annotations
 
 import json
-from enum import StrEnum
 from pathlib import Path
 from typing import Any, Self
 
 from pydantic import BaseModel, ConfigDict
 
-from tada.prompts.loader import load_section_documentation_prompts
 from tada.tableau.extractors import (
     extract_actions,
     extract_calculations,
@@ -19,23 +17,6 @@ from tada.tableau.extractors import (
 )
 from tada.tableau.loader import load_workbook_xml
 from tada.tableau.xml.prune import drop_xpaths
-
-
-class WorkbookSection(StrEnum):
-    DATASOURCES = "datasources"
-    CALCULATIONS = "calculations"
-    DASHBOARDS = "dashboards"
-    WORKSHEETS = "worksheets"
-    ACTIONS = "actions"
-    PARAMETERS = "parameters"
-    TABLES = "tables"
-
-    def fetch_from(self, workbook: Workbook) -> Any:
-        """Return the corresponding attribute from a Workbook object."""
-        return getattr(workbook, self.value)
-
-    def load_documentation_prompts(self) -> tuple[str, str]:
-        return load_section_documentation_prompts(self)
 
 
 class Workbook(BaseModel):
