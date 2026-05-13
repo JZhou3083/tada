@@ -11,11 +11,11 @@ from tada.application.document_workbook import (
 )
 from tada.cli.commands._base import AppCommand
 from tada.cli.config import cli_config
-from tada.cli.display import (
-    console,
-    print_debug_notice,
+from tada.cli.display.banners import (
+    print_debug_notice_banner,
     print_tada_banner,
 )
+from tada.cli.display.console import console
 from tada.cli.input import ask_for_file_path
 from tada.cli.options import (
     AllSectionsOpt,
@@ -203,7 +203,7 @@ def _cmd_document(
         subtitle="Documentation generator",
     )
     if cli_config.debug:
-        print_debug_notice(console, debug_dir=cli_config.debug_dir)
+        print_debug_notice_banner(console, debug_dir=cli_config.debug_dir)
     run_document(workbook_path, output_path, sections, all_sections)
 
 

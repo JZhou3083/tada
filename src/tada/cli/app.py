@@ -8,7 +8,11 @@ from tada.cli.commands.chat import COMMAND as CHAT_COMMAND
 from tada.cli.commands.compare import COMMAND as COMPARE_COMMAND
 from tada.cli.commands.document import COMMAND as DOCUMENT_COMMAND
 from tada.cli.config import cli_config
-from tada.cli.display import console, print_debug_notice, print_tada_banner
+from tada.cli.display.banners import (
+    print_debug_notice_banner,
+    print_tada_banner,
+)
+from tada.cli.display.console import console
 from tada.cli.options import DebugOpt
 
 # Silence this specific auth-warning which Google SDK prints directly to console
@@ -56,7 +60,7 @@ def menu(
         subtitle="Interactive menu",
     )
     if cli_config.debug:
-        print_debug_notice(console, debug_dir=cli_config.debug_dir)
+        print_debug_notice_banner(console, debug_dir=cli_config.debug_dir)
     interactive_launcher()
 
 

@@ -2,7 +2,11 @@ import typer
 
 from tada.cli.commands._base import AppCommand
 from tada.cli.config import cli_config
-from tada.cli.display import console, print_debug_notice, print_tada_banner
+from tada.cli.display.banners import (
+    print_debug_notice_banner,
+    print_tada_banner,
+)
+from tada.cli.display.console import console
 from tada.cli.options import DebugOpt
 
 
@@ -20,7 +24,7 @@ def _cmd_chat(debug: DebugOpt = False):
     cli_config.configure_logging(console)
     print_tada_banner(console, subtitle="Workbook QA")
     if cli_config.debug:
-        print_debug_notice(console, debug_dir=cli_config.debug_dir)
+        print_debug_notice_banner(console, debug_dir=cli_config.debug_dir)
     run_chat()
 
 

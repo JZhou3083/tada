@@ -5,9 +5,9 @@ from pathlib import Path
 from rich.live import Live
 
 from tada.cli.config import cli_config
-from tada.cli.display import (
+from tada.cli.display.console import console
+from tada.cli.display.status import (
     GraphStatusDisplay,
-    console,
 )
 from tada.domain.workbook import Workbook, WorkbookSection
 from tada.graph.events import GraphStatusEvent, GraphStatusStore
@@ -61,6 +61,7 @@ def document_workbook(request: DocumentWorkbookRequest) -> DocumentWorkbookResul
     statuses = GraphStatusStore()
     display = GraphStatusDisplay(total_sections=len(request.sections))
 
+    # TODO: all live concerns should ultimately be fed back to the CLI to display, consider adding a progress handler to the func
     with Live(
         display.build(statuses),
         refresh_per_second=10,
