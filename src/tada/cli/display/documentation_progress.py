@@ -1,4 +1,3 @@
-import logging
 from collections import Counter
 
 from rich.console import Group
@@ -23,77 +22,60 @@ from tada.graph.events import (
     StatusIssue,
 )
 
-logger = logging.getLogger(__name__)
+SECTIONS_TITLE = "Sections"
+SECTIONS_RUNNING_TEXT = "Documenting sections..."
+ISSUES_TITLE = "Issues"
+SUMMARY_TITLE = "Summary"
+SUMMARY_RUNNING_TEXT = "Generating summary..."
+SUMMARY_DONE_TEXT = "Summary generated"
 
 
-class GraphStatusDisplay:
+class DocumentationProgressDisplay:
     def __init__(self, total_sections: int) -> None:
-        self.sections_progress = Progress(
+        self.section_progress = Progress(
             SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),
             BarColumn(),
             TextColumn("{task.completed}/{task.total} sections"),
             TimeElapsedColumn(),
         )
-        self.overall = self.sections_progress.add_task(
-            "Documenting sections",
+        self.section_task_id = self.section_progress.add_task(
+            SECTIONS_RUNNING_TEXT,
             total=total_sections,
         )
 
-    def build(self, statuses: GraphStatusStore) -> Group:
-        self._sync_progress(statuses)
+    def render(self, store: GraphStatusStore) -> Group:
+        self._sync_progress(store)
 
         items = [
-            Rule("Sections", style="bold blue"),
-            self._build_sections_table(statuses),
+            Rule(SECTIONS_TITLE, style="bold blue"),
+            self._build_sections_table(store),
             Text(""),
-            self.sections_progress,
+            self.section_progress,
         ]
 
-        # sections_grid = Table.grid()
-        # sections_grid.add_column()
-        # sections_grid.add_row(Text("Sections", style="bold"))
-
-        # sections_grid.add_row(self._build_sections_table(statuses))
-        # sections_grid.add_row(Text(""))
-        # sections_grid.add_row(self.sections_progress)
-
-        # items.append(sections_grid)
-
-        issues_table = self._build_issues_table(statuses)
+        issues_table = self._build_issues_table(store)
         if issues_table is not None:
             items.extend(
                 [
                     Text(""),
-                    Rule("Issues", style="bold yellow"),
+                    Rule(ISSUES_TITLE, style="bold yellow"),
                     issues_table,
                 ]
             )
 
-            # issues_grid = Table.grid(padding=(0, 0))
-            # issues_grid.add_column()
-
-            # issues_grid.add_row(Text("Issues", style="bold"))
-            # issues_grid.add_row(issues_table)
-
-            # items.append(Padding(issues_grid, (1, 0, 0, 0)))
-
-        # if statuses.summary:
-        #     items.append(Text(""))
-        #     items.append(self._build_summary(statuses.summary))
-
-        if statuses.summary:
+        if store.summary:
             items.extend(
                 [
                     Text(""),
-                    Rule("Summary", style="bold green"),
-                    self._build_summary(statuses.summary),
+                    Rule(SUMMARY_TITLE, style="bold green"),
+                    self._build_summary_status(store.summary),
                 ]
             )
 
         return Group(*items)
 
-    def _build_sections_table(self, statuses: GraphStatusStore) -> Table:
+    def _build_sections_table(self, store: GraphStatusStore) -> Table:
         tbl = Table(
             show_header=True,
             header_style="bold blue",
@@ -105,9 +87,8 @@ class GraphStatusDisplay:
         tbl.add_column("Attempts", no_wrap=True, width=8)
         tbl.add_column("Issues", no_wrap=True, width=12)
 
-        for sec_name, sec_status in statuses.sections.items():
-            color = SECTION_STATE_STYLE[sec_status.state]
-
+        for sec_name, sec_status in store.sections.items():
+            color = SECTION_STATE_STYLE.get(sec_status.state, "white")
             tbl.add_row(
                 sec_name,
                 Text(
@@ -121,8 +102,8 @@ class GraphStatusDisplay:
 
         return tbl
 
-    def _build_issues_table(self, statuses: GraphStatusStore) -> Table | None:
-        issue_rows = self._collect_issue_rows(statuses)
+    def _build_issues_table(self, store: GraphStatusStore) -> Table | None:
+        issue_rows = self._collect_issue_rows(store)
 
         if not issue_rows:
             return None
@@ -140,7 +121,7 @@ class GraphStatusDisplay:
         table.add_column("Issue", ratio=1, overflow="fold")
 
         for step_name, issue in issue_rows:
-            style = ISSUE_SEVERITY_STYLE[issue.severity]
+            style = ISSUE_SEVERITY_STYLE.get(issue.severity, "white")
 
             table.add_row(
                 step_name,
@@ -151,17 +132,17 @@ class GraphStatusDisplay:
 
         return table
 
-    def _build_summary(self, summary_status: Status) -> Table:
+    def _build_summary_status(self, summary_status: Status) -> Table:
         summary_grid = Table.grid(padding=(0, 1))
         summary_grid.add_column()
 
         if summary_status.state in SECTION_COMPLETE_STATES:
-            summary_grid.add_row(Text("✅ Summary generated", style="green"))
+            summary_grid.add_row(Text(SUMMARY_DONE_TEXT, style="green"))
         else:
             summary_grid.add_row(
                 Spinner(
                     "dots",
-                    text="Generating final summary...",
+                    text=SUMMARY_RUNNING_TEXT,
                     style="cyan",
                 )
             )
@@ -170,16 +151,16 @@ class GraphStatusDisplay:
 
     def _collect_issue_rows(
         self,
-        statuses: GraphStatusStore,
+        store: GraphStatusStore,
     ) -> list[tuple[str, StatusIssue]]:
         rows: list[tuple[str, StatusIssue]] = []
 
         section_order = {
             section_name: index
-            for index, section_name in enumerate(statuses.sections.keys())
+            for index, section_name in enumerate(store.sections.keys())
         }
 
-        for section_name, section_status in statuses.sections.items():
+        for section_name, section_status in store.sections.items():
             # Only want to surface error details for completed sections
             if section_status.state not in SECTION_COMPLETE_STATES:
                 continue
@@ -188,8 +169,8 @@ class GraphStatusDisplay:
                 rows.append((section_name, issue))
 
         # Only want to surface error details for summary if completed
-        if statuses.summary and statuses.summary.state in SECTION_COMPLETE_STATES:
-            for issue in statuses.summary.issues:
+        if store.summary and store.summary.state in SECTION_COMPLETE_STATES:
+            for issue in store.summary.issues:
                 rows.append(("summary", issue))
 
         return sorted(
@@ -208,7 +189,7 @@ class GraphStatusDisplay:
         section_order: dict[str, int],
     ) -> tuple[int, int, str, str]:
         return (
-            issue.severity,
+            -int(issue.severity),  # Descending order ERROR=3 -> WARNING=2 -> INFO=1
             section_order.get(section_name, 999),
             issue.code or "",
             issue.message,
@@ -231,14 +212,14 @@ class GraphStatusDisplay:
 
         return Text(" ").join(parts) if parts else Text("-")
 
-    def _sync_progress(self, statuses: GraphStatusStore) -> None:
+    def _sync_progress(self, store: GraphStatusStore) -> None:
         completed_sections = sum(
             1
-            for status in statuses.sections.values()
+            for status in store.sections.values()
             if status.state in SECTION_COMPLETE_STATES
         )
 
-        self.sections_progress.update(
-            self.overall,
+        self.section_progress.update(
+            self.section_task_id,
             completed=completed_sections,
         )
