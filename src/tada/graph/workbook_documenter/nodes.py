@@ -60,13 +60,13 @@ def summarize_all_sections_documentation(state: OverallState) -> OutputState:
 
         summariser_prompt = (
             resources.files("tada") / "prompts" / "summariser.md"
-        ).read_text(encoding="utf-8")       
+        ).read_text(encoding="utf-8")
 
         try:
             client_wrapper = get_vertexai_gateway()
 
             span = trace.get_current_span()
-            labels = get_prop_attrs(span.attributes) 
+            labels = get_prop_attrs(span.attributes)
 
             contents = client_wrapper.contents_from_text_parts(
             [summariser_prompt, compiled_doc]
@@ -86,7 +86,7 @@ def summarize_all_sections_documentation(state: OverallState) -> OutputState:
         update_generation(response=response,
                       langfuse=langfuse,
                       metadata={"section": ", ".join(s.value for s in docs_by_section)}
-        )       
+        )
 
         final_doc_parts = [documentation_summary] + ordered_section_docs
 
@@ -97,7 +97,6 @@ def summarize_all_sections_documentation(state: OverallState) -> OutputState:
     )
 
     log_span(span=span)
-    
-    return {
+    log_span(span=span)
         "final_doc": "\n\n".join([p.rstrip() for p in [AI_NOTICE] + final_doc_parts])
     }

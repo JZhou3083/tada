@@ -13,12 +13,6 @@ from tada.observability.trace_printer import write_trace
 import langfuse
 
 langfuse = get_langfuse()
-from tada.observability.langfuse_client import get_langfuse, get_span_exporter
-from tada.observability.trace_printer import write_trace
-
-import langfuse
-
-langfuse = get_langfuse()
 
 logger = logging.getLogger(__name__)
 
@@ -208,7 +202,7 @@ def finalise_observability(*, run_id: str | None = None) -> None:
     
     if not trace_id:
         trace_id=run_id
-
+        trace_id = run_id
     try:
         write_trace(spans=spans, run_id=trace_id)
     except Exception:

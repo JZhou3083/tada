@@ -17,8 +17,8 @@ def build_base_generation_config(
         ),
         automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
         labels={"project": "TADA",
-                "workbook": labels["workbook"],
-                "sections": labels["sections"],
-                "env": labels["env"]
+                "workbook": labels.get("workbook", "") if labels else "",
+                "sections": labels.get("sections", "") if labels else "",
+                "env": labels.get("env", "") if labels else ""
         }
     )
