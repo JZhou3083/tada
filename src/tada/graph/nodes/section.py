@@ -1,18 +1,49 @@
 import json
 import logging
 import time
+from functools import partial
 from importlib import resources
 from typing import Any
 
-from tada.graph.events import SectionState, StepKind, issues_from_eval_result
+from tada.graph.events import (
+    IssueSeverity,
+    SectionState,
+    StatusIssue,
+    StepKind,
+    issues_from_eval_result,
+)
 from tada.graph.nodes.helpers import emit_graph_status
-from tada.graph.state import SectionDocumenterState
+from tada.graph.state import SectionDocumenterInput, SectionDocumenterState
 from tada.llm.client import get_vertexai_gateway
 from tada.llm.configs import build_base_generation_config
 from tada.llm.schemas import EvalResult
 from tada.llm.telemetry import log_genai_usage
 
 logger = logging.getLogger(__name__)
+
+
+def prepare_section(state: SectionDocumenterInput) -> dict[str, Any]:
+    updates = {"generation_attempts": 0}
+
+    # Skip all LLM generation - directly to emit - if payload is empty
+    if not state.get("data"):
+        emit_graph_status(
+            name=state["section"].value,
+            kind=StepKind.SECTION,
+            state=SectionState.SKIPPED,
+            attempts=0,
+            issues=(
+                StatusIssue(
+                    "Generation skipped due to empty data payload.",
+                    severity=IssueSeverity.INFO,
+                    code="empty-payload",
+                    source="graph",
+                ),
+            ),
+        )
+        return updates | {"skip_section": True}
+
+    return updates | {"skip_section": False}
 
 
 def _add_feedback_to_prompt(prompt: str, feedback: list[EvalResult]) -> str:
@@ -58,24 +89,12 @@ def _add_feedback_to_prompt(prompt: str, feedback: list[EvalResult]) -> str:
 def generate_section_documentation(
     state: SectionDocumenterState,
 ) -> dict[str, Any]:
-    # `generation_attempts` state var is not set on first generation
-    if "generation_attempts" not in state:
-        state["generation_attempts"] = 0
-        emit_graph_status(
-            name=state["section"].value,
-            kind=StepKind.SECTION,
-            state=SectionState.GENERATING,
-            attempts=0,
-            issues=(),
-        )
-    else:
-        emit_graph_status(
-            name=state["section"].value,
-            kind=StepKind.SECTION,
-            state=SectionState.RETRYING,
-            attempts=state["generation_attempts"],
-        )
-
+    emit_graph_status(
+        name=state["section"].value,
+        kind=StepKind.SECTION,
+        state=SectionState.GENERATING,
+        attempts=state["generation_attempts"],
+    )
     logger.debug(
         "Beginning generation node label=%s generation_attempt=%d",
         f"{state['section'].value}:generate",
@@ -179,39 +198,50 @@ def evaluate_section_documentation(state: SectionDocumenterState) -> dict[str, A
     return {"evaluation_history": [evaluation]}
 
 
-def emit_section_documentation(state: SectionDocumenterState) -> dict[str, Any]:
-    """Format results of documentation into a state update to remerge back into the parent branch"""
-    emit_graph_status(
-        name=state["section"].value,
-        kind=StepKind.SECTION,
-        state=SectionState.DONE,
-        attempts=state["generation_attempts"],
-    )
-
-    if "generated_section_doc" not in state:
-        raise ValueError(
-            f"Cannot emit section documentation because generated_section_doc is missing. "
-            f"section={state.get('section').value}, attempts={state.get('attempts')}"
-        )
-
-    return {"docs_by_section": {state["section"]: state["generated_section_doc"]}}
-
-
-def emit_section_documentation_with_issues(
+def _emit_section_documentation_generic(
     state: SectionDocumenterState,
+    *,
+    final_state: SectionState = SectionState.DONE,
+    require_doc: bool = True,
 ) -> dict[str, Any]:
+    """Format results of documentation into a state update to remerge back into the parent branch"""
+    section = state["section"]
+    attempts = state.get("generation_attempts", 0)
+    doc = state.get("generated_section_doc")
 
     emit_graph_status(
-        name=state["section"].value,
+        name=section.value,
         kind=StepKind.SECTION,
-        state=SectionState.REACHED_RETRY_LIMIT,
-        attempts=state["generation_attempts"],
+        state=final_state,
+        attempts=attempts,
     )
 
-    if "generated_section_doc" not in state:
+    doc = state.get("generated_section_doc")
+
+    if doc is None and require_doc:
         raise ValueError(
-            f"Cannot emit section documentation because generated_section_doc is missing. "
-            f"section={state.get('section').value}, attempts={state.get('attempts')}"
+            "Cannot emit section documentation because generated_section_doc is missing. "
+            f"section={section.value}, attempts={attempts}, final_state={final_state}"
         )
 
-    return {"docs_by_section": {state["section"]: state["generated_section_doc"]}}
+    # TODO: add warnings to top of section documentation? Consider an arg which is "show issues above this level of severity"
+    return {
+        "docs_by_section": {section: doc} if doc is not None else {},
+    }
+
+
+emit_section_documentation = partial(
+    _emit_section_documentation_generic,
+    final_state=SectionState.DONE,
+)
+
+emit_section_documentation_retry_limit = partial(
+    _emit_section_documentation_generic,
+    final_state=SectionState.REACHED_RETRY_LIMIT,
+)
+
+emit_section_documentation_skipped = partial(
+    _emit_section_documentation_generic,
+    final_state=SectionState.SKIPPED,
+    require_doc=False,
+)

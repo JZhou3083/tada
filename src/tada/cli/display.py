@@ -22,7 +22,6 @@ from tada.graph.events import (
     SECTION_COMPLETE_STATES,
     GraphStatusStore,
     IssueSeverity,
-    SectionState,
     Status,
     StatusIssue,
 )
@@ -287,7 +286,7 @@ class GraphStatusDisplay:
         completed_sections = sum(
             1
             for status in statuses.sections.values()
-            if status.state in (SectionState.DONE, SectionState.REACHED_RETRY_LIMIT)
+            if status.state in SECTION_COMPLETE_STATES
         )
 
         self.sections_progress.update(

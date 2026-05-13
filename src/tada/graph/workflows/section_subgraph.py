@@ -9,9 +9,11 @@ from langgraph.graph.state import CompiledStateGraph
 from tada.graph.config import MAX_SECTION_ATTEMPTS
 from tada.graph.nodes.section import (
     emit_section_documentation,
-    emit_section_documentation_with_issues,
+    emit_section_documentation_retry_limit,
+    emit_section_documentation_skipped,
     evaluate_section_documentation,
     generate_section_documentation,
+    prepare_section,
 )
 from tada.graph.state import (
     SectionDocumenterInput,
@@ -23,10 +25,16 @@ logger = logging.getLogger(__name__)
 
 
 class SectionNodeId(StrEnum):
+    PREPARE_SECTION = "prepare_section"
     GENERATE_SECTION_DOCS = "generate_section_docs"
     EVALUATE_SECTION_DOCS = "evaluate_section_docs"
     EMIT_SECTION_DOCS = "emit_section_docs"
     EMIT_SECTION_DOCS_WITH_ISSUES = "emit_section_docs_with_issues"
+    EMIT_SECTION_DOCS_SKIPPED = "emit_section_docs_skipped"
+
+
+def route_after_precheck(state: SectionDocumenterState) -> Literal["skip", "generate"]:
+    return "skip" if state.get("skip_section") else "generate"
 
 
 def route_evaluation_results(
@@ -76,6 +84,7 @@ def build_section_documenter_subgraph(
         output_schema=SectionDocumenterOutput,
     )
 
+    builder.add_node(SectionNodeId.PREPARE_SECTION, prepare_section)
     builder.add_node(
         SectionNodeId.GENERATE_SECTION_DOCS, generate_section_documentation
     )
@@ -85,10 +94,22 @@ def build_section_documenter_subgraph(
     builder.add_node(SectionNodeId.EMIT_SECTION_DOCS, emit_section_documentation)
     builder.add_node(
         SectionNodeId.EMIT_SECTION_DOCS_WITH_ISSUES,
-        emit_section_documentation_with_issues,
+        emit_section_documentation_retry_limit,
+    )
+    builder.add_node(
+        SectionNodeId.EMIT_SECTION_DOCS_SKIPPED,
+        emit_section_documentation_skipped,
     )
 
-    builder.add_edge(START, SectionNodeId.GENERATE_SECTION_DOCS)
+    builder.add_edge(START, SectionNodeId.PREPARE_SECTION)
+    builder.add_conditional_edges(
+        SectionNodeId.PREPARE_SECTION,
+        route_after_precheck,
+        {
+            "skip": SectionNodeId.EMIT_SECTION_DOCS_SKIPPED,
+            "generate": SectionNodeId.GENERATE_SECTION_DOCS,
+        },
+    )
     builder.add_edge(
         SectionNodeId.GENERATE_SECTION_DOCS, SectionNodeId.EVALUATE_SECTION_DOCS
     )
@@ -102,6 +123,8 @@ def build_section_documenter_subgraph(
         },
     )
     builder.add_edge(SectionNodeId.EMIT_SECTION_DOCS, END)
+    builder.add_edge(SectionNodeId.EMIT_SECTION_DOCS_WITH_ISSUES, END)
+    builder.add_edge(SectionNodeId.EMIT_SECTION_DOCS_SKIPPED, END)
 
     workflow = builder.compile(checkpointer=checkpointer)
     logger.debug(
