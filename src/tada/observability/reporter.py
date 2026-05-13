@@ -13,6 +13,12 @@ from tada.observability.trace_printer import write_trace
 import langfuse
 
 langfuse = get_langfuse()
+from tada.observability.langfuse_client import get_langfuse, get_span_exporter
+from tada.observability.trace_printer import write_trace
+
+import langfuse
+
+langfuse = get_langfuse()
 
 logger = logging.getLogger(__name__)
 
