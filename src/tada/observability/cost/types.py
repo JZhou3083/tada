@@ -6,10 +6,10 @@ from typing import TypedDict
 class Usage(TypedDict, total=False):
     """Token usage metrics returned by the model provider."""
 
-    prompt_token_count: int
-    cached_content_token_count: int
-    thoughts_token_count: int
-    candidates_token_count: int
+    prompt_token_count: int | None
+    cached_content_token_count: int | None
+    thoughts_token_count: int | None
+    candidates_token_count: int | None
 
 
 class CostComponent(TypedDict):
