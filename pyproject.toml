@@ -33,11 +33,13 @@ build-backend = "hatchling.build"
 packages = ["src/tada"]
 include = [
   "src/tada/prompts/**/*.md",
+  "src/tada/observability/**/*.yaml",
 ]
 
 [tool.hatch.build.targets.sdist]
 include = [
   "src/tada/prompts/**/*.md",
+  "src/tada/observability/**/*.yaml",
 ]
 
 
