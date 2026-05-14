@@ -82,12 +82,11 @@ def _resolve_output_arg(output_path: OutputOpt | None, workbook_path: Path) -> P
     if output_path:
         return output_path
 
+    default_output_path = str(Path("output") / workbook_path.with_suffix(".md").name)
     try:
         return ask_for_file_path(
             "Enter the path to save generated documentation to after completion (.md)",
-            default=workbook_path.with_suffix(
-                ".md"
-            ).name,  # or str? which is appropriate
+            default=default_output_path,
             must_exist=False,
             suffixes=(".md"),
         )
@@ -135,6 +134,7 @@ def _resolve_sections_arg(
     except KeyboardInterrupt:
         console.print("[yellow]Cancelled.")
         raise typer.Exit(code=0)
+
 
 def run_document(
     workbook_path: WorkbookOpt = None,
@@ -190,6 +190,7 @@ def run_document(
         )
 
     console.print(f"[green]Documentation written to {result.output_path}[/green]")
+
 
 def _cmd_document(
     workbook_path: WorkbookOpt = None,

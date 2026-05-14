@@ -9,9 +9,16 @@ wheels/
 # Virtual environments
 .venv
 
+# --- Project specific ---
+# Input
+workbooks/
+
+# Output
+output/*.md
+
 # Reports
-/reports/*.json
-/reports/*.csv
+reports/*.json
+reports/*.csv
 
 
 
