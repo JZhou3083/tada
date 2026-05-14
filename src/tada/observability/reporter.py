@@ -192,16 +192,16 @@ def finalise_observability(*, run_id: str | None = None) -> None:
 
     langfuse.flush()
 
-    span_exporter = get_span_exporter()
-    spans: list[ReadableSpan] = span_exporter.spans
-
+    spans: list[ReadableSpan] = get_span_exporter().spans
     if not spans:
         return
     
-    trace_id = format(spans[0].context.trace_id, "032x")
-    
-    if not trace_id:
-        trace_id = run_id
+    trace_id = (
+        format(span_context.trace_id, "032x")
+        if span_context and span_context.trace_id
+        else run_id
+    )
+
     try:
         write_trace(spans=spans, run_id=trace_id)
     except Exception:
