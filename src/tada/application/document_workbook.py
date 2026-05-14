@@ -5,9 +5,18 @@ from pathlib import Path
 from tada.application.graph_runner import run_graph_with_status
 from tada.application.ports import NullStatusSink, StatusSink
 from tada.cli.config import cli_config
+from tada.cli.options import AllSectionsOpt
 from tada.domain.sections import WorkbookSection
 from tada.domain.workbook import Workbook
 from tada.graph.workbook_documenter.graph import build_documentation_workflow
+
+
+from tada.observability.langfuse_client import get_langfuse
+from tada.observability.reporter import finalise_observability
+
+from langfuse import observe, propagate_attributes
+
+langfuse = get_langfuse()
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +28,7 @@ class DocumentWorkbookRequest:
     output_path: Path
     sections: list[WorkbookSection]
     run_summary_step: bool = True
+    all_sections: AllSectionsOpt = False
 
 
 @dataclass(frozen=True)
@@ -26,7 +36,7 @@ class DocumentWorkbookResult:
     output_path: Path
     final_doc: str
 
-
+@observe(name="documentation_workflow")
 def document_workbook(
     request: DocumentWorkbookRequest,
     *,
@@ -42,6 +52,9 @@ def document_workbook(
     # Pre-process the workbook using our pre-existing XML -> JSON parsing approach
     logger.debug("Parsing workbook: %s", request.workbook_path)
     workbook = Workbook.from_file(request.workbook_path)
+    workbook_name = getattr(workbook, "name", None) or Path(request.workbook_path).stem
+    section_hint = 'ALL' if request.all_sections else "-".join(section[0].upper() for section in request.sections)
+
     logger.debug("Parsed workbook.")
 
     if cli_config.debug:
@@ -54,21 +67,33 @@ def document_workbook(
         "Invoking documentation graph...",
     )
 
-    final_state = run_graph_with_status(
-        graph=workflow,
-        input_state={
-            "workbook": workbook,
-            "generation_plan": request.sections,
-            "run_summary_step": request.run_summary_step,
-        },
-        status_sink=sink,
-    )
-    final_doc = final_state["final_doc"]
+    with propagate_attributes(
+                metadata={
+                    "workflow": "documentation",
+                    "version": "v1",
+                    "section.count": str(len(request.sections)),
+                    "workbook": workbook_name,
+                    "sections": section_hint,
+                    "env": "dev"
+                }
+            ):
+        final_state = run_graph_with_status(
+            graph=workflow,
+            input_state={
+                "workbook": workbook,
+                "generation_plan": request.sections,
+                "run_summary_step": request.run_summary_step,
+            },
+            status_sink=sink,
+        )
+        final_doc = final_state["final_doc"]
 
     logger.debug("Graph complete.")
 
     request.output_path.parent.mkdir(parents=True, exist_ok=True)
     request.output_path.write_text(final_doc, encoding="utf-8")
+
+    finalise_observability(run_id='TaDA')
 
     return DocumentWorkbookResult(
         output_path=request.output_path,

@@ -136,7 +136,6 @@ def _resolve_sections_arg(
         console.print("[yellow]Cancelled.")
         raise typer.Exit(code=0)
 
-
 def run_document(
     workbook_path: WorkbookOpt = None,
     output_path: OutputOpt = None,
@@ -191,7 +190,6 @@ def run_document(
         )
 
     console.print(f"[green]Documentation written to {result.output_path}[/green]")
-
 
 def _cmd_document(
     workbook_path: WorkbookOpt = None,
