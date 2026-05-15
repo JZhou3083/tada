@@ -9,6 +9,9 @@ wheels/
 # Virtual environments
 .venv
 
+# Dev environment variables
+.env
+
 # --- Project specific ---
 # Input
 workbooks/
