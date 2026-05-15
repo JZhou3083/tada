@@ -71,6 +71,16 @@ class TadaRunContext:
             ended_at=datetime.now(UTC).isoformat(),
         )
 
+    def mark_failed(self, error: BaseException) -> None:
+        """Mark the run as failed in metadata."""
+        self._write_metadata(
+            completed=False,
+            failed=True,
+            ended_at=datetime.now(UTC).isoformat(),
+            error_type=type(error).__name__,
+            error_message=str(error),
+        )
+
     def _write_metadata(self, **extra: JSONValue) -> None:
         data = {
             "run_id": self.run_id,

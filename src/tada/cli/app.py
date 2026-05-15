@@ -14,6 +14,9 @@ from tada.cli.display.banners import (
 )
 from tada.cli.display.console import console
 from tada.cli.options import DebugOpt
+from tada.config.settings import TadaSettings
+from tada.runtime.context import TadaRunContext
+from tada.runtime.lifecycle import TadaRuntime
 
 # Silence this specific auth-warning which Google SDK prints directly to console
 warnings.filterwarnings(
@@ -34,7 +37,11 @@ app = typer.Typer(
 )
 
 
-ALL_COMMANDS = [DOCUMENT_COMMAND, CHAT_COMMAND, COMPARE_COMMAND]
+ALL_COMMANDS = [
+    DOCUMENT_COMMAND,
+    CHAT_COMMAND,
+    COMPARE_COMMAND,
+]
 APP_COMMANDS = {cmd.name: cmd.run for cmd in ALL_COMMANDS}
 
 
@@ -116,4 +123,14 @@ def main():
     for cmd in ALL_COMMANDS:
         cmd.register(app)
 
-    app()
+    settings = TadaSettings()
+    context = TadaRunContext.create(state_dir=settings.state_dir)
+
+    with TadaRuntime(context=context):
+        try:
+            app()
+        except Exception as exc:
+            context.mark_failed(exc)
+            raise
+        else:
+            context.mark_completed()
