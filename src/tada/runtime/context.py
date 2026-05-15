@@ -12,6 +12,10 @@ RUN_METADATA_FILE = "run.json"
 TRACES_FILE = "traces.jsonl"
 CHECKPOINTS_FILE = "checkpoints.db"
 
+type JSONValue = (
+    str | int | float | bool | None | list[JSONValue] | dict[str, JSONValue]
+)
+
 
 @dataclass(frozen=True)
 class TadaRunContext:
@@ -64,10 +68,10 @@ class TadaRunContext:
         """Mark the run as completed in metadata."""
         self._write_metadata(
             completed=True,
-            ended_at=datetime.now(UTC),
+            ended_at=datetime.now(UTC).isoformat(),
         )
 
-    def _write_metadata(self, **extra: object) -> None:
+    def _write_metadata(self, **extra: JSONValue) -> None:
         data = {
             "run_id": self.run_id,
             "started_at": self.started_at.isoformat(),
