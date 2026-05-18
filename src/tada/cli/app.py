@@ -6,16 +6,13 @@ from tada.cli.commands.base import AppCommand
 from tada.cli.commands.chat import COMMAND as CHAT_COMMAND
 from tada.cli.commands.compare import COMMAND as COMPARE_COMMAND
 from tada.cli.commands.document import COMMAND as DOCUMENT_COMMAND
-from tada.cli.config import cli_config
-from tada.cli.display.banners import (
-    print_debug_notice_banner,
-    print_tada_banner,
-)
+from tada.cli.display.banners import print_command_header
 from tada.cli.display.console import console
 from tada.cli.menu import prompt_for_command
 from tada.cli.options import DebugOpt
 from tada.cli.state import TadaCliOptions, TadaCliState
 from tada.config.settings import TadaSettings
+from tada.observability.logging import configure_logging
 from tada.runtime.context import TadaRunContext
 from tada.runtime.lifecycle import AppRuntime
 
@@ -69,22 +66,22 @@ def handle_entrypoint(
         cli_options=cli_options,
     )
 
-    # Apply debug status globally so subcommands can access it
-    cli_config.apply_debug(debug)
-    cli_config.configure_logging(console)
+    configure_logging(
+        console=console,
+        run_context=run_context,
+        cli_options=cli_options,
+    )
 
     # If a subcommand was provided then proceed as normal
     if ctx.invoked_subcommand is not None:
         return
 
     # No subcommand -> route to the interactive launcher
-    cli_config.configure_logging(console)
-    print_tada_banner(
+    print_command_header(
+        ctx,
         console,
         subtitle="Interactive menu",
     )
-    if cli_config.debug:
-        print_debug_notice_banner(console, debug_dir=cli_config.debug_dir)
 
     prompt_for_command(ctx, ALL_COMMANDS)
 

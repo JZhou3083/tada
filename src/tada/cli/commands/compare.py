@@ -1,11 +1,7 @@
 import typer
 
 from tada.cli.commands.base import AppCommand
-from tada.cli.config import cli_config
-from tada.cli.display.banners import (
-    print_debug_notice_banner,
-    print_tada_banner,
-)
+from tada.cli.display.banners import print_command_header
 from tada.cli.display.console import console
 from tada.cli.state import TadaCliState, get_cli_state
 
@@ -44,9 +40,7 @@ def _cmd_compare(ctx: typer.Context) -> None:
     Args:
         ctx: Typer context containing the current TaDA CLI state.
     """
-    print_tada_banner(console=console, subtitle="Workbook comparison")
-    if cli_config.debug:
-        print_debug_notice_banner(console, debug_dir=cli_config.debug_dir)
+    print_command_header(ctx, console, subtitle="Workbook comparison")
 
     handle_compare(ctx)
 

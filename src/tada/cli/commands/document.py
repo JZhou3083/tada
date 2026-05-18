@@ -11,11 +11,7 @@ from tada.application.document_workbook import (
     document_workbook,
 )
 from tada.cli.commands.base import AppCommand
-from tada.cli.config import cli_config
-from tada.cli.display.banners import (
-    print_debug_notice_banner,
-    print_tada_banner,
-)
+from tada.cli.display.banners import print_command_header
 from tada.cli.display.console import console
 from tada.cli.display.documentation_progress import DocumentationProgressDisplay
 from tada.cli.display.documentation_progress_sink import RichDocumentationProgressSink
@@ -244,12 +240,11 @@ def _cmd_document(
         sections: Specific workbook sections to document.
         all_sections: Whether to document all available workbook sections.
     """
-    print_tada_banner(
+    print_command_header(
+        ctx,
         console,
         subtitle="Documentation generator",
     )
-    if cli_config.debug:
-        print_debug_notice_banner(console, debug_dir=cli_config.debug_dir)
 
     handle_document(
         ctx=ctx,
