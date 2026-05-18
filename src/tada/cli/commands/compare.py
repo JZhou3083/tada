@@ -45,7 +45,6 @@ def _cmd_compare(ctx: typer.Context) -> None:
     Args:
         ctx: Typer context containing the current TaDA runtime context.
     """
-    cli_config.configure_logging(console)
     print_tada_banner(console=console, subtitle="Workbook comparison")
     if cli_config.debug:
         print_debug_notice_banner(console, debug_dir=cli_config.debug_dir)

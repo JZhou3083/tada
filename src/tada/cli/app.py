@@ -66,6 +66,7 @@ def handle_entrypoint(
 
     # Apply debug status globally so subcommands can access it
     cli_config.apply_debug(debug)
+    cli_config.configure_logging(console)
 
     # If a subcommand was provided then proceed as normal
     if ctx.invoked_subcommand is not None:

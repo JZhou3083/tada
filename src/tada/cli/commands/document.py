@@ -245,7 +245,6 @@ def _cmd_document(
         sections: Specific workbook sections to document.
         all_sections: Whether to document all available workbook sections.
     """
-    cli_config.configure_logging(console)
     print_tada_banner(
         console,
         subtitle="Documentation generator",

@@ -45,7 +45,6 @@ def _cmd_chat(ctx: typer.Context):
     Args:
         ctx: Typer context containing the current TaDA runtime context.
     """
-    cli_config.configure_logging(console)
     print_tada_banner(console, subtitle="Workbook QA")
     if cli_config.debug:
         print_debug_notice_banner(console, debug_dir=cli_config.debug_dir)
