@@ -13,7 +13,7 @@ from rich.spinner import Spinner
 from rich.table import Table
 from rich.text import Text
 
-from tada.cli.theme import ISSUE_SEVERITY_STYLE, SECTION_STATE_STYLE
+from tada.cli.display.theme import ISSUE_SEVERITY_STYLE, SECTION_STATE_STYLE
 from tada.graph.events import (
     SECTION_COMPLETE_STATES,
     GraphStatusStore,
