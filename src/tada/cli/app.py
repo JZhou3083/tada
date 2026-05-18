@@ -1,8 +1,6 @@
 import warnings
 
-import questionary
 import typer
-from questionary import Choice
 
 from tada.cli.commands.chat import COMMAND as CHAT_COMMAND
 from tada.cli.commands.compare import COMMAND as COMPARE_COMMAND
@@ -13,6 +11,7 @@ from tada.cli.display.banners import (
     print_tada_banner,
 )
 from tada.cli.display.console import console
+from tada.cli.menu import prompt_for_command
 from tada.cli.options import DebugOpt
 from tada.config.settings import TadaSettings
 from tada.runtime.context import TadaRunContext
@@ -42,7 +41,6 @@ ALL_COMMANDS = [
     CHAT_COMMAND,
     COMPARE_COMMAND,
 ]
-APP_COMMANDS = {cmd.name: cmd.run for cmd in ALL_COMMANDS}
 
 
 @app.callback(invoke_without_command=True)
@@ -68,55 +66,8 @@ def menu(
     )
     if cli_config.debug:
         print_debug_notice_banner(console, debug_dir=cli_config.debug_dir)
-    interactive_launcher()
 
-
-def interactive_launcher():
-    """
-    Prompt user to select one of the TaDA commands from an interactive menu and run it.
-    """
-    choices = [
-        Choice(
-            title=[
-                ("bold", c.name),
-                ("", ": "),
-                ("fg:ansibrightblack", c.interactive_menu_desc),
-            ],
-            value=c.name,
-        )
-        for c in ALL_COMMANDS
-    ]
-    # Add an exit option
-    choices.append(
-        Choice(
-            title=[
-                ("bold", "exit"),
-                ("", ": "),
-                ("fg:ansibrightblack", "Quit the application"),
-            ],
-            value="exit",
-        )
-    )
-
-    try:
-        selected = questionary.select(
-            "What do you want to do?",
-            choices,
-        ).unsafe_ask()
-    except KeyboardInterrupt:
-        console.print("[yellow]Cancelled.")
-        raise typer.Exit(code=0)
-
-    if selected == "exit":
-        console.print("[yellow]Cancelled.")
-        raise typer.Exit(code=0)
-
-    handler = APP_COMMANDS.get(selected)
-    if handler is None:
-        console.print("[bold red]Error[/bold red] Unknown command selected.")
-        raise typer.Exit(code=1)
-
-    handler()
+    prompt_for_command(ctx, ALL_COMMANDS)
 
 
 def main():
@@ -125,6 +76,10 @@ def main():
 
     settings = TadaSettings()
     context = TadaRunContext.create(state_dir=settings.state_dir)
+
+    # TODO: Define an app state object
+    # TODO: Register callback inside main(), adding the state obj to typer ctx
+    # TODO: Update all commands to pass context in
 
     with TadaRuntime(context=context):
         try:
