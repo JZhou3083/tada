@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Iterable
 
 from opentelemetry.sdk.trace import ReadableSpan
-from tada.observability.cost_calculator import calculate_cost
+from tada.observability.cost.calculator import calculate_cost
 from tada.observability.langfuse_client import get_langfuse, get_span_exporter
 from tada.observability.trace_printer import write_trace
 

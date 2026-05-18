@@ -97,5 +97,3 @@ def summarize_all_sections_documentation(state: OverallState) -> OutputState:
     )
 
     log_span(span=span)
-    log_span(span=span)
-    }
