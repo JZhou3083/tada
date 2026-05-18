@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -65,7 +66,8 @@ class TadaRunContext:
             A new ``TadaRunContext`` instance.
         """
         started_at = datetime.now(UTC)
-        run_id = started_at.strftime("%Y-%m-%dT%H-%M-%SZ")
+        timestamp = started_at.strftime("%Y-%m-%dT%H-%M-%SZ")
+        run_id = f"{timestamp}_{uuid.uuid4().hex[:6]}"
         run_dir = state_dir / RUNS_DIR / run_id
 
         run_dir.mkdir(parents=True, exist_ok=False)
