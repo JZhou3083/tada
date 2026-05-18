@@ -9,6 +9,7 @@ from rich.live import Live
 
 from tada.application.document_workbook import (
     DocumentWorkbookRequest,
+    DocumentWorkbookRunConfig,
     document_workbook,
 )
 from tada.cli.commands.base import AppCommand
@@ -180,6 +181,14 @@ def run_document(
             sections=sections,
             run_summary_step=run_summary_step,
         )
+
+        run_config = DocumentWorkbookRunConfig(
+            run_id=cli_state.run_context.info.run_id,
+            debug=cli_state.cli_options.debug,
+            artifacts_dir=cli_state.run_context.paths.artifacts_dir,
+            checkpoints_path=cli_state.run_context.paths.checkpoints_path,
+        )
+
         status_store = GraphStatusStore.from_sections([s.value for s in sections])
         display = DocumentationProgressDisplay(total_sections=len(sections))
 
@@ -189,9 +198,9 @@ def run_document(
             sink = RichDocumentationProgressSink(
                 display=display, store=status_store, live=live
             )
-            # TODO: can now pass in context vars e.g. `checkpointer_dir=run_context.checkpointer_dir`
             result = document_workbook(
                 request,
+                run_config=run_config,
                 status_sink=sink,
             )
 

@@ -1,16 +1,15 @@
 import logging
+import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
 
-# from langfuse import observe, propagate_attributes
+from langgraph.checkpoint.sqlite import SqliteSaver
+
 from tada.application.graph_runner import run_graph_with_status
 from tada.application.ports import NullStatusSink, StatusSink
-from tada.cli.options import AllSectionsOpt
 from tada.domain.sections import WorkbookSection
 from tada.domain.workbook import Workbook
 from tada.graph.workbook_documenter.graph import build_documentation_workflow
-
-# from tada.observability.reporter import finalise_observability
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +21,15 @@ class DocumentWorkbookRequest:
     output_path: Path
     sections: list[WorkbookSection]
     run_summary_step: bool = True
-    all_sections: AllSectionsOpt = False
+    # save_artifacts: bool = False, # equivalent of debug
+
+
+@dataclass(frozen=True)
+class DocumentWorkbookRunConfig:
+    run_id: str
+    debug: bool = False
+    artifacts_dir: Path | None = None
+    checkpoints_path: Path | None = None
 
 
 @dataclass(frozen=True)
@@ -31,10 +38,10 @@ class DocumentWorkbookResult:
     final_doc: str
 
 
-# @observe(name="documentation_workflow")
 def document_workbook(
     request: DocumentWorkbookRequest,
     *,
+    run_config: DocumentWorkbookRunConfig,
     status_sink: StatusSink | None = None,
 ) -> DocumentWorkbookResult:
     """Generate Markdown documentation for a Tableau workbook.
@@ -47,36 +54,23 @@ def document_workbook(
     # Pre-process the workbook using our pre-existing XML -> JSON parsing approach
     logger.debug("Parsing workbook: %s", request.workbook_path)
     workbook = Workbook.from_file(request.workbook_path)
-    workbook_name = getattr(workbook, "name", None) or Path(request.workbook_path).stem
-    section_hint = (
-        "ALL"
-        if request.all_sections
-        else "-".join(section[0].upper() for section in request.sections)
-    )
-
     logger.debug("Parsed workbook.")
 
-    # TODO: replace to use run_context param
-    # if cli_config.debug:
-    #     workbook.write_debug(cli_config.debug_dir)
-    #     logger.debug("Wrote parsed workbook contents to %s", cli_config.debug_dir)
+    if run_config.debug and run_config.artifacts_dir:
+        run_config.artifacts_dir.mkdir(parents=True, exist_ok=True)
+        workbook.write_debug(run_config.artifacts_dir)
+        logger.debug("Wrote debug artifacts to %s", run_config.artifacts_dir)
 
-    workflow = build_documentation_workflow()
+    if run_config.checkpoints_path:
+        checkpointer = SqliteSaver(sqlite3.connect(run_config.checkpoints_path))
+        workflow = build_documentation_workflow(checkpointer=checkpointer)
+    else:
+        workflow = build_documentation_workflow()
 
     logger.debug(
         "Invoking documentation graph...",
     )
 
-    # with propagate_attributes(
-    #     metadata={
-    #         "workflow": "documentation",
-    #         "version": "v1",
-    #         "section.count": str(len(request.sections)),
-    #         "workbook": workbook_name,
-    #         "sections": section_hint,
-    #         "env": "dev",
-    #     }
-    # ):
     final_state = run_graph_with_status(
         graph=workflow,
         input_state={
@@ -86,14 +80,13 @@ def document_workbook(
         },
         status_sink=sink,
     )
+
     final_doc = final_state["final_doc"]
 
     logger.debug("Graph complete.")
 
     request.output_path.parent.mkdir(parents=True, exist_ok=True)
     request.output_path.write_text(final_doc, encoding="utf-8")
-
-    # finalise_observability(run_id="TaDA")
 
     return DocumentWorkbookResult(
         output_path=request.output_path,

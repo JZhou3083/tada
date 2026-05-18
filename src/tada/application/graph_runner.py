@@ -15,7 +15,10 @@ def run_graph_with_status(
     final_state: dict[str, Any] | None = None
 
     for chunk in graph.stream(
-        input_state, stream_mode=["values", "custom"], subgraphs=True, version="v2"
+        input_state,
+        stream_mode=["values", "custom"],
+        subgraphs=True,
+        version="v2",
     ):
         if chunk["type"] == "custom":
             if isinstance(chunk["data"], GraphStatusEvent):
