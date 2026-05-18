@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, Self, TextIO
 
 from opentelemetry import trace as otel_trace
+from opentelemetry.instrumentation.langchain import LangchainInstrumentor
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import (
     ConsoleSpanExporter,
@@ -133,6 +134,8 @@ class AppRuntime:
 
         # Set the provider globally BEFORE langfuse imports.
         otel_trace.set_tracer_provider(self.tracer_provider)
+
+        LangchainInstrumentor().instrument()
 
     def __enter__(self) -> Self:
         self._setup_tracing()
