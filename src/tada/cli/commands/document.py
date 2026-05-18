@@ -3,6 +3,7 @@ from pathlib import Path
 
 import questionary
 import typer
+from opentelemetry import trace
 from questionary import Choice
 from rich.live import Live
 
@@ -25,6 +26,8 @@ from tada.cli.options import (
 from tada.cli.state import TadaCliState, get_cli_state
 from tada.domain.sections import WorkbookSection
 from tada.graph.events import GraphStatusStore
+
+tracer = trace.get_tracer(__name__)
 
 logger = logging.getLogger(__name__)
 
@@ -49,11 +52,12 @@ def _resolve_workbook_arg(workbook_path: WorkbookOpt | None) -> Path:
         return workbook_path
 
     try:
-        return ask_for_file_path(
-            "Enter the path to your Tableau workbook (.twb or .twbx)",
-            must_exist=True,
-            suffixes=(".twb", ".twbx"),
-        )
+        with tracer.start_as_current_span("cli.prompt.workbook_path"):
+            return ask_for_file_path(
+                "Enter the path to your Tableau workbook (.twb or .twbx)",
+                must_exist=True,
+                suffixes=(".twb", ".twbx"),
+            )
     except KeyboardInterrupt:
         console.print("[yellow]Cancelled.")
         raise typer.Exit(code=0)
@@ -80,12 +84,13 @@ def _resolve_output_arg(output_path: OutputOpt | None, workbook_path: Path) -> P
 
     default_output_path = str(Path("output") / workbook_path.with_suffix(".md").name)
     try:
-        return ask_for_file_path(
-            "Enter the path to save generated documentation to after completion (.md)",
-            default=default_output_path,
-            must_exist=False,
-            suffixes=(".md"),
-        )
+        with tracer.start_as_current_span("cli.prompt.output_path"):
+            return ask_for_file_path(
+                "Enter the path to save generated documentation to after completion (.md)",
+                default=default_output_path,
+                must_exist=False,
+                suffixes=(".md"),
+            )
     except KeyboardInterrupt:
         console.print("[yellow]Cancelled.")
         raise typer.Exit(code=0)
@@ -122,11 +127,12 @@ def _resolve_sections_arg(
 
     choices = [Choice(title=s.value, value=s) for s in list(WorkbookSection)]
     try:
-        return questionary.checkbox(
-            "Select sections to document",
-            choices,
-            validate=lambda a: len(a) > 0,  # Users must select at least one section
-        ).unsafe_ask()
+        with tracer.start_as_current_span("cli.prompt.sections"):
+            return questionary.checkbox(
+                "Select sections to document",
+                choices,
+                validate=lambda a: len(a) > 0,  # Users must select at least one section
+            ).unsafe_ask()
     except KeyboardInterrupt:
         console.print("[yellow]Cancelled.")
         raise typer.Exit(code=0)
@@ -154,41 +160,42 @@ def run_document(
         sections: Specific workbook sections to document.
         all_sections: Whether to document all available workbook sections.
     """
-    workbook_path = _resolve_workbook_arg(workbook_path)
-    output_path = _resolve_output_arg(output_path, workbook_path)
-    sections = _resolve_sections_arg(sections, all_sections)
-    run_summary_step = questionary.confirm(
-        "Include a top-level summary of selected sections?"
-    ).ask()
-    # max_retries = questionary.select(
-    #     "Choose the permitted number of generation retries"
-    # )
-    # max_retries = questionary.select(
-    #     "Choose whether to enable evaluation if 0 retries?"
-    # )
+    with tracer.start_as_current_span("command.document"):
+        workbook_path = _resolve_workbook_arg(workbook_path)
+        output_path = _resolve_output_arg(output_path, workbook_path)
+        sections = _resolve_sections_arg(sections, all_sections)
+        run_summary_step = questionary.confirm(
+            "Include a top-level summary of selected sections?"
+        ).ask()
+        # max_retries = questionary.select(
+        #     "Choose the permitted number of generation retries"
+        # )
+        # max_retries = questionary.select(
+        #     "Choose whether to enable evaluation if 0 retries?"
+        # )
 
-    request = DocumentWorkbookRequest(
-        workbook_path=workbook_path,
-        output_path=output_path,
-        sections=sections,
-        run_summary_step=run_summary_step,
-    )
-    status_store = GraphStatusStore.from_sections([s.value for s in sections])
-    display = DocumentationProgressDisplay(total_sections=len(sections))
-
-    with Live(
-        display.render(status_store), console=console, refresh_per_second=8
-    ) as live:
-        sink = RichDocumentationProgressSink(
-            display=display, store=status_store, live=live
+        request = DocumentWorkbookRequest(
+            workbook_path=workbook_path,
+            output_path=output_path,
+            sections=sections,
+            run_summary_step=run_summary_step,
         )
-        # TODO: can now pass in context vars e.g. `checkpointer_dir=run_context.checkpointer_dir`
-        result = document_workbook(
-            request,
-            status_sink=sink,
-        )
+        status_store = GraphStatusStore.from_sections([s.value for s in sections])
+        display = DocumentationProgressDisplay(total_sections=len(sections))
 
-    console.print(f"[green]Documentation written to {result.output_path}[/green]")
+        with Live(
+            display.render(status_store), console=console, refresh_per_second=8
+        ) as live:
+            sink = RichDocumentationProgressSink(
+                display=display, store=status_store, live=live
+            )
+            # TODO: can now pass in context vars e.g. `checkpointer_dir=run_context.checkpointer_dir`
+            result = document_workbook(
+                request,
+                status_sink=sink,
+            )
+
+        console.print(f"[green]Documentation written to {result.output_path}[/green]")
 
 
 def handle_document(

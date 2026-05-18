@@ -1,6 +1,7 @@
 import warnings
 
 import typer
+from opentelemetry import trace
 
 from tada.cli.commands.base import AppCommand
 from tada.cli.commands.chat import COMMAND as CHAT_COMMAND
@@ -23,6 +24,8 @@ warnings.filterwarnings(
     category=UserWarning,
     module=r"google\.auth\._default",
 )
+
+tracer = trace.get_tracer(__name__)
 
 app = typer.Typer(
     name="Tableau Documentation Agent (TaDA)",
@@ -59,31 +62,33 @@ def handle_entrypoint(
         run_context: Runtime context for the current TaDA execution.
         debug: Whether debug mode should be enabled for this invocation.
     """
-    cli_options = TadaCliOptions(debug=debug)
+    with tracer.start_as_current_span("cli.entrypoint"):
+        cli_options = TadaCliOptions(debug=debug)
 
-    ctx.obj = TadaCliState(
-        run_context=run_context,
-        cli_options=cli_options,
-    )
+        ctx.obj = TadaCliState(
+            run_context=run_context,
+            cli_options=cli_options,
+        )
 
-    configure_logging(
-        console=console,
-        run_context=run_context,
-        cli_options=cli_options,
-    )
+        configure_logging(
+            console=console,
+            run_context=run_context,
+            cli_options=cli_options,
+        )
 
     # If a subcommand was provided then proceed as normal
     if ctx.invoked_subcommand is not None:
         return
 
-    # No subcommand -> route to the interactive launcher
-    print_command_header(
-        ctx,
-        console,
-        subtitle="Interactive menu",
-    )
+    with tracer.start_as_current_span("cli.interactive_menu"):
+        # No subcommand -> route to the interactive launcher
+        print_command_header(
+            ctx,
+            console,
+            subtitle="Interactive menu",
+        )
 
-    prompt_for_command(ctx, ALL_COMMANDS)
+        prompt_for_command(ctx, ALL_COMMANDS)
 
 
 def create_entrypoint_callback(run_context: TadaRunContext):
@@ -136,4 +141,5 @@ def main():
     app.callback(invoke_without_command=True)(create_entrypoint_callback(run_context))
 
     with AppRuntime(context=run_context):
-        app()
+        with tracer.start_as_current_span("cli.run"):
+            app()
