@@ -8,7 +8,6 @@ from tada.cli.display.banners import (
     print_tada_banner,
 )
 from tada.cli.display.console import console
-from tada.cli.options import DebugOpt
 from tada.runtime.context import TadaRunContext
 
 
@@ -40,14 +39,12 @@ def handle_compare(
     run_compare(run_context=run_context)
 
 
-def _cmd_compare(ctx: typer.Context, debug: DebugOpt = False) -> None:
+def _cmd_compare(ctx: typer.Context) -> None:
     """CLI entrypoint for the ``compare`` command.
 
     Args:
         ctx: Typer context containing the current TaDA runtime context.
-        debug: Whether to enable debug logging and debug artifact output.
     """
-    cli_config.apply_debug(debug)
     cli_config.configure_logging(console)
     print_tada_banner(console=console, subtitle="Workbook comparison")
     if cli_config.debug:

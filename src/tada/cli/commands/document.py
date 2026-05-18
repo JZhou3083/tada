@@ -12,6 +12,7 @@ from tada.application.document_workbook import (
 )
 from tada.cli.commands.base import AppCommand
 from tada.cli.config import cli_config
+from tada.cli.context import get_run_context
 from tada.cli.display.banners import (
     print_debug_notice_banner,
     print_tada_banner,
@@ -22,13 +23,13 @@ from tada.cli.display.documentation_progress_sink import RichDocumentationProgre
 from tada.cli.input import ask_for_file_path
 from tada.cli.options import (
     AllSectionsOpt,
-    DebugOpt,
     OutputOpt,
     SectionOpt,
     WorkbookOpt,
 )
 from tada.domain.sections import WorkbookSection
 from tada.graph.events import GraphStatusStore
+from tada.runtime.context import TadaRunContext
 
 logger = logging.getLogger(__name__)
 
@@ -137,6 +138,7 @@ def _resolve_sections_arg(
 
 
 def run_document(
+    run_context: TadaRunContext,
     workbook_path: WorkbookOpt = None,
     output_path: OutputOpt = None,
     sections: SectionOpt = None,
@@ -151,6 +153,7 @@ def run_document(
     for them interactively.
 
     Args:
+        run_context: Runtime context for the current TaDA execution.
         workbook_path: Path to the Tableau workbook to document.
         output_path: Path where the generated Markdown should be written.
         sections: Specific workbook sections to document.
@@ -184,6 +187,7 @@ def run_document(
         sink = RichDocumentationProgressSink(
             display=display, store=status_store, live=live
         )
+        # TODO: can now pass in context vars e.g. `checkpointer_dir=run_context.checkpointer_dir`
         result = document_workbook(
             request,
             status_sink=sink,
@@ -192,27 +196,55 @@ def run_document(
     console.print(f"[green]Documentation written to {result.output_path}[/green]")
 
 
-def _cmd_document(
+def handle_document(
+    ctx: typer.Context,
     workbook_path: WorkbookOpt = None,
     output_path: OutputOpt = None,
     sections: SectionOpt = None,
     all_sections: AllSectionsOpt = False,
-    debug: DebugOpt = False,
 ) -> None:
-    """CLI entry point for the ``document`` command.
+    """Handle execution of the document command from any CLI route.
 
-    This wrapper applies CLI configuration, enables debug behaviour when
-    requested, prints command-line UI elements, and then runs the documentation
-    workflow.
+    This function is shared by direct command invocation and the interactive
+    menu. It retrieves the current TaDA runtime context from the Typer context
+    and delegates to the documentation workflow.
 
     Args:
+        ctx: Typer context containing the current TaDA runtime context.
         workbook_path: Path to the Tableau workbook to document.
         output_path: Path where the generated Markdown should be written.
         sections: Specific workbook sections to document.
         all_sections: Whether to document all available workbook sections.
-        debug: Whether to enable debug logging and debug artifact output.
     """
-    cli_config.apply_debug(debug)
+    run_context = get_run_context(ctx)
+    run_document(
+        run_context=run_context,
+        workbook_path=workbook_path,
+        output_path=output_path,
+        sections=sections,
+        all_sections=all_sections,
+    )
+
+
+def _cmd_document(
+    ctx: typer.Context,
+    workbook_path: WorkbookOpt = None,
+    output_path: OutputOpt = None,
+    sections: SectionOpt = None,
+    all_sections: AllSectionsOpt = False,
+) -> None:
+    """CLI entry point for the ``document`` command.
+
+    This wrapper performs command-line UI setup, then delegates to the shared
+    document handler used by both direct invocation and the interactive menu.
+
+    Args:
+        ctx: Typer context containing the current TaDA runtime context.
+        workbook_path: Path to the Tableau workbook to document.
+        output_path: Path where the generated Markdown should be written.
+        sections: Specific workbook sections to document.
+        all_sections: Whether to document all available workbook sections.
+    """
     cli_config.configure_logging(console)
     print_tada_banner(
         console,
@@ -220,11 +252,18 @@ def _cmd_document(
     )
     if cli_config.debug:
         print_debug_notice_banner(console, debug_dir=cli_config.debug_dir)
-    run_document(workbook_path, output_path, sections, all_sections)
+
+    handle_document(
+        ctx=ctx,
+        workbook_path=workbook_path,
+        output_path=output_path,
+        sections=sections,
+        all_sections=all_sections,
+    )
 
 
 def register(app: typer.Typer) -> None:
-    """Register the ``document`` command with the Typer application.
+    """Register the ``document`` command with the Typer app.
 
     Args:
         app: The Typer application to register the command with.
@@ -239,5 +278,5 @@ COMMAND = AppCommand(
     name="document",
     interactive_menu_desc="Generate workbook documentation",
     register=register,
-    run=run_document,
+    run=handle_document,
 )
