@@ -12,7 +12,6 @@ from tada.application.document_workbook import (
 )
 from tada.cli.commands.base import AppCommand
 from tada.cli.config import cli_config
-from tada.cli.context import get_run_context
 from tada.cli.display.banners import (
     print_debug_notice_banner,
     print_tada_banner,
@@ -27,9 +26,9 @@ from tada.cli.options import (
     SectionOpt,
     WorkbookOpt,
 )
+from tada.cli.state import TadaCliState, get_cli_state
 from tada.domain.sections import WorkbookSection
 from tada.graph.events import GraphStatusStore
-from tada.runtime.context import TadaRunContext
 
 logger = logging.getLogger(__name__)
 
@@ -138,7 +137,7 @@ def _resolve_sections_arg(
 
 
 def run_document(
-    run_context: TadaRunContext,
+    cli_state: TadaCliState,
     workbook_path: WorkbookOpt = None,
     output_path: OutputOpt = None,
     sections: SectionOpt = None,
@@ -153,7 +152,7 @@ def run_document(
     for them interactively.
 
     Args:
-        run_context: Runtime context for the current TaDA execution.
+        cli_state: CLI state for the current TaDA execution.
         workbook_path: Path to the Tableau workbook to document.
         output_path: Path where the generated Markdown should be written.
         sections: Specific workbook sections to document.
@@ -205,20 +204,20 @@ def handle_document(
 ) -> None:
     """Handle execution of the document command from any CLI route.
 
-    This function is shared by direct command invocation and the interactive
-    menu. It retrieves the current TaDA runtime context from the Typer context
-    and delegates to the documentation workflow.
+    This function is shared by direct command invocation and the interactive menu. It
+    retrieves the current TaDA CLI state from the Typer context and delegates to the
+    documentation workflow.
 
     Args:
-        ctx: Typer context containing the current TaDA runtime context.
+        ctx: Typer context containing the current TaDA CLI state.
         workbook_path: Path to the Tableau workbook to document.
         output_path: Path where the generated Markdown should be written.
         sections: Specific workbook sections to document.
         all_sections: Whether to document all available workbook sections.
     """
-    run_context = get_run_context(ctx)
+    cli_state = get_cli_state(ctx)
     run_document(
-        run_context=run_context,
+        cli_state=cli_state,
         workbook_path=workbook_path,
         output_path=output_path,
         sections=sections,
@@ -239,7 +238,7 @@ def _cmd_document(
     document handler used by both direct invocation and the interactive menu.
 
     Args:
-        ctx: Typer context containing the current TaDA runtime context.
+        ctx: Typer context containing the current TaDA CLI state.
         workbook_path: Path to the Tableau workbook to document.
         output_path: Path where the generated Markdown should be written.
         sections: Specific workbook sections to document.

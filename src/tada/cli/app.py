@@ -14,9 +14,10 @@ from tada.cli.display.banners import (
 from tada.cli.display.console import console
 from tada.cli.menu import prompt_for_command
 from tada.cli.options import DebugOpt
+from tada.cli.state import TadaCliOptions, TadaCliState
 from tada.config.settings import TadaSettings
 from tada.runtime.context import TadaRunContext
-from tada.runtime.lifecycle import TadaRuntime
+from tada.runtime.lifecycle import AppRuntime
 
 # Silence this specific auth-warning which Google SDK prints directly to console
 warnings.filterwarnings(
@@ -52,17 +53,21 @@ def handle_entrypoint(
     """Handle shared CLI setup and route empty invocations to the interactive menu.
 
     This function is called by the root Typer callback before command execution.
-    It attaches the current run context to the Typer context so subcommands can
-    access runtime state, applies global debug configuration, and decides whether
-    to continue with a user-provided subcommand or fall back to the interactive
-    command prompt.
+    It creates the CLI invocation state, attaches it to the Typer context,
+    configures logging once, and decides whether to continue with a provided
+    subcommand or fall back to the interactive command prompt.
 
     Args:
         ctx: Typer invocation context for the current CLI run.
         run_context: Runtime context for the current TaDA execution.
         debug: Whether debug mode should be enabled for this invocation.
     """
-    ctx.obj = run_context
+    cli_options = TadaCliOptions(debug=debug)
+
+    ctx.obj = TadaCliState(
+        run_context=run_context,
+        cli_options=cli_options,
+    )
 
     # Apply debug status globally so subcommands can access it
     cli_config.apply_debug(debug)
@@ -131,12 +136,9 @@ def main():
     settings = TadaSettings()
     run_context = TadaRunContext.create(state_dir=settings.state_dir)
 
-    # TODO: Define an app state object
-    # TODO: Update all commands to pass context in
-
     app.callback(invoke_without_command=True)(create_entrypoint_callback(run_context))
 
-    with TadaRuntime(context=run_context):
+    with AppRuntime(context=run_context):
         try:
             app()
         except Exception as exc:

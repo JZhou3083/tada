@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -9,90 +8,80 @@ from typing import Self
 RUNS_DIR = "runs"
 
 RUN_METADATA_FILE = "run.json"
+LOGS_FILE = "app.log"
 TRACES_FILE = "traces.jsonl"
 CHECKPOINTS_FILE = "checkpoints.db"
+ARTIFACTS_DIR = "artifacts"
 
-type JSONValue = (
-    str | int | float | bool | None | list[JSONValue] | dict[str, JSONValue]
-)
+
+@dataclass(frozen=True)
+class RunInfo:
+    """Identifiers and timestamps associated with a run."""
+
+    run_id: str
+    started_at: datetime
+    run_dir: Path
+
+
+@dataclass(frozen=True)
+class RunPaths:
+    """Filesystem paths for data produced during a run."""
+
+    metadata_path: Path
+    logs_path: Path
+    traces_path: Path
+    checkpoints_path: Path
+    artifacts_dir: Path
 
 
 @dataclass(frozen=True)
 class TadaRunContext:
     """
-    Immutable, per-invocation execution context.
+    Per-invocation context describing run identity and filesystem layout.
 
-    A RunContext describes *where* all artefacts for a single run should live
-    (traces, checkpoints, metadata) and provides a stable identifier for correlating
-    observability, debugging output, and filesystem state.
-
-    It contains no business logic and owns no resources. Creation and shutdown
-    of runtime resources (OTEL providers, files, checkpointers) are handled
-    separately by the TadaRuntime.
+    A ``TadaRunContext`` provides a unique identifier for the run and the
+    canonical paths where run-related data may be written, including logs,
+    traces, checkpoints, metadata, and generated artefacts.
     """
 
-    run_id: str
-    run_dir: Path
-    metadata_path: Path
-    traces_path: Path
-    checkpoints_path: Path
-    started_at: datetime
+    info: RunInfo
+    """Run identity information such as ID, start time, and base directory."""
+
+    paths: RunPaths
+    """Filesystem locations associated with the run."""
 
     @classmethod
     def create(cls, *, state_dir: Path) -> Self:
         """
-        Create a new run context under the given TaDA state directory.
+        Create a new run context under the given state directory.
 
-        This eagerly creates the run directory and checkpoint directory but
-        does not open files or initialise observability.
+        Generates a run identifier, initialises the run directory, and
+        computes paths for run artefacts.
+
+        Args:
+            state_dir: Base directory where runs are stored.
+
+        Returns:
+            A new ``TadaRunContext`` instance.
         """
         started_at = datetime.now(UTC)
         run_id = started_at.strftime("%Y-%m-%dT%H-%M-%SZ")
-
         run_dir = state_dir / RUNS_DIR / run_id
 
-        ctx = cls(
+        run_dir.mkdir(parents=True, exist_ok=False)
+
+        info = RunInfo(
             run_id=run_id,
+            started_at=started_at,
             run_dir=run_dir,
+        )
+
+        paths = RunPaths(
             metadata_path=run_dir / RUN_METADATA_FILE,
+            logs_path=run_dir / LOGS_FILE,
             traces_path=run_dir / TRACES_FILE,
             checkpoints_path=run_dir / CHECKPOINTS_FILE,
-            started_at=started_at,
+            artifacts_dir=run_dir / ARTIFACTS_DIR,
         )
 
-        ctx._write_metadata(completed=False)
-
-        return ctx
-
-    def mark_completed(self) -> None:
-        """Mark the run as completed in metadata."""
-        self._write_metadata(
-            completed=True,
-            ended_at=datetime.now(UTC).isoformat(),
-        )
-
-    def mark_failed(self, error: BaseException) -> None:
-        """Mark the run as failed in metadata."""
-        self._write_metadata(
-            completed=False,
-            failed=True,
-            ended_at=datetime.now(UTC).isoformat(),
-            error_type=type(error).__name__,
-            error_message=str(error),
-        )
-
-    def _write_metadata(self, **extra: JSONValue) -> None:
-        data = {
-            "run_id": self.run_id,
-            "started_at": self.started_at.isoformat(),
-            "run_dir": str(self.run_dir),
-            "traces_path": str(self.traces_path),
-            "checkpoints_path": str(self.checkpoints_path),
-            **extra,
-        }
-
-        self.run_dir.mkdir(parents=True, exist_ok=True)
-        self.metadata_path.write_text(
-            json.dumps(data, indent=2),
-            encoding="utf-8",
-        )
+        return cls(info=info, paths=paths)

@@ -2,20 +2,19 @@ import typer
 
 from tada.cli.commands.base import AppCommand
 from tada.cli.config import cli_config
-from tada.cli.context import get_run_context
 from tada.cli.display.banners import (
     print_debug_notice_banner,
     print_tada_banner,
 )
 from tada.cli.display.console import console
-from tada.runtime.context import TadaRunContext
+from tada.cli.state import TadaCliState, get_cli_state
 
 
-def run_chat(run_context: TadaRunContext) -> None:
+def run_chat(cli_state: TadaCliState) -> None:
     """Run the workbook chat workflow.
 
     Args:
-        run_context: Runtime context for the current TaDA execution.
+        cli_state: CLI state for the current TaDA execution.
     """
     # TODO: create chat logic or delete command
     console.print(
@@ -33,17 +32,17 @@ def handle_chat(
     This function contains the shared command orchestration used by both direct
     command invocation and the interactive menu.
     Args:
-        ctx: Typer context containing the current TaDA runtime context.
+        ctx: Typer context containing the current TaDA CLI state.
     """
-    run_context = get_run_context(ctx)
-    run_chat(run_context=run_context)
+    cli_state = get_cli_state(ctx)
+    run_chat(cli_state=cli_state)
 
 
 def _cmd_chat(ctx: typer.Context):
     """CLI entrypoint for the ``chat`` command.
 
     Args:
-        ctx: Typer context containing the current TaDA runtime context.
+        ctx: Typer context containing the current TaDA CLI state.
     """
     print_tada_banner(console, subtitle="Workbook QA")
     if cli_config.debug:
