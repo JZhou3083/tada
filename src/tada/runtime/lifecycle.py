@@ -1,7 +1,8 @@
+import json
 import os
-from collections.abc import Iterator
-from contextlib import contextmanager
-from typing import Self, TextIO
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any, Self, TextIO
 
 from opentelemetry import trace as otel_trace
 from opentelemetry.sdk.trace import TracerProvider
@@ -13,41 +14,114 @@ from opentelemetry.sdk.trace.export import (
 from tada.runtime.context import TadaRunContext
 
 
-class TadaRuntime:
+class RunStateStore:
+    """Persist run lifecycle metadata to disk."""
+
+    def __init__(self, context: TadaRunContext) -> None:
+        self._context = context
+
+    # ------------------------
+    # Lifecycle methods
+    # ------------------------
+
+    def mark_started(self) -> None:
+        """Record the start of a run."""
+        self._write_metadata(
+            status="running",
+            started_at=self._context.info.started_at.isoformat(),
+        )
+
+    def mark_completed(self) -> None:
+        """Record successful completion of a run."""
+        self._write_metadata(
+            status="completed",
+            completed=True,
+            ended_at=datetime.now(UTC).isoformat(),
+        )
+
+    def mark_failed(self, exc: Exception) -> None:
+        """Record failure of a run and associated error details."""
+        self._write_metadata(
+            status="failed",
+            completed=False,
+            failed=True,
+            ended_at=datetime.now(UTC).isoformat(),
+            error_type=type(exc).__name__,
+            error_message=str(exc),
+        )
+
+    # ------------------------
+    # Internal helpers
+    # ------------------------
+
+    def _write_metadata(self, **extra: Any) -> None:
+        """Write run metadata to disk, merging with existing content if present."""
+        path = self._context.paths.metadata_path
+
+        base = {
+            "run_id": self._context.info.run_id,
+            "run_dir": str(self._context.info.run_dir),
+            "started_at": self._context.info.started_at.isoformat(),
+            "traces_path": str(self._context.paths.traces_path),
+            "checkpoints_path": str(self._context.paths.checkpoints_path),
+        }
+
+        existing = self._load_existing(path)
+
+        data = {
+            **existing,
+            **base,
+            **extra,
+        }
+
+        path.write_text(
+            json.dumps(data, indent=2),
+            encoding="utf-8",
+        )
+
+    def _load_existing(self, path: Path) -> dict[str, Any]:
+        """Load existing metadata if present."""
+        if not path.exists():
+            return {}
+
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            return {}
+
+
+class AppRuntime:
     """
-    Process-level runtime registry for run-scoped infrastructure.
+    Runtime container for a single CLI invocation.
 
-    This class owns long-lived runtime resources created for a single CLI run,
-    such as OpenTelemetry providers and file-backed exporters.
+    Owns lifecycle-managed infrastructure such as OpenTelemetry,
+    file-backed exporters, and run-level services.
 
-    It centralises setup and teardown for resources that need to live for the
-    duration of a run and be flushed or closed during process shutdown.
-
-    Typical usage:
-    ```
-    with TadaRuntime(context=context):
-        # Execute command logic for this run.
-        ...
-    # On exit, the tracer provider is shut down and the trace file is closed.
-    ```
-
-    Responsibilities:
-    - Store the run context for the current invocation.
-    - Configure process-level observability, including OpenTelemetry.
-    - Own file-backed exporters and related runtime resources.
-    - Provide a single, safe place to flush and close resources.
-
-    Notes:
-    - OpenTelemetry's tracer provider is process-global, so this runtime should
-    generally be created once per process/CLI invocation.
-    - `shutdown()` is idempotent and may be called manually, but using the context
-    manager form is preferred.
+    Use as a context manager to ensure proper setup and teardown.
     """
 
     def __init__(self, *, context: TadaRunContext) -> None:
-        self.run_context = context
-        self.trace_file: TextIO = open(
-            self.run_context.traces_path,
+        self.context = context
+
+        self.trace_file: TextIO | None = None
+        self.tracer_provider: TracerProvider | None = None
+
+        self.run_state = RunStateStore(context)
+
+        self._is_shutdown = False
+
+        self._configure_environment()
+
+    def _configure_environment(self) -> None:
+        # Tell Langfuse SDK not to create its own exporter/transport.
+        os.environ.setdefault("LANGFUSE_SECRET_KEY", "local")
+        os.environ.setdefault("LANGFUSE_PUBLIC_KEY", "local")
+        os.environ.setdefault("LANGFUSE_HOST", "http://localhost:0")
+        os.environ["OTEL_SDK_DISABLED"] = "false"
+
+    def _setup_tracing(self) -> None:
+        self.trace_file = open(
+            self.context.paths.traces_path,
             "a",
             encoding="utf-8",
         )
@@ -57,43 +131,31 @@ class TadaRuntime:
             SimpleSpanProcessor(ConsoleSpanExporter(out=self.trace_file))
         )
 
-        self._is_shutdown = False
-
-        self._configure_environment()
-        self._configure_otel()
-
-    def _configure_environment(self) -> None:
-        # Tell Langfuse SDK not to create its own exporter/transport.
-        os.environ.setdefault("LANGFUSE_SECRET_KEY", "local")
-        os.environ.setdefault("LANGFUSE_PUBLIC_KEY", "local")
-        os.environ.setdefault("LANGFUSE_HOST", "http://localhost:0")
-        os.environ["OTEL_SDK_DISABLED"] = "false"
-
-    def _configure_otel(self) -> None:
         # Set the provider globally BEFORE langfuse imports.
         otel_trace.set_tracer_provider(self.tracer_provider)
+
+    def __enter__(self) -> Self:
+        self._setup_tracing()
+        self.run_state.mark_started()
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        try:
+            if exc:
+                self.run_state.mark_failed(exc)
+            else:
+                self.run_state.mark_completed()
+        finally:
+            self.shutdown()
 
     def shutdown(self) -> None:
         if self._is_shutdown:
             return
 
         try:
-            self.tracer_provider.shutdown()
+            if self.tracer_provider:
+                self.tracer_provider.shutdown()
         finally:
-            self.trace_file.close()
+            if self.trace_file:
+                self.trace_file.close()
             self._is_shutdown = True
-
-    def __enter__(self) -> Self:
-        return self
-
-    def __exit__(self, *args: object) -> None:
-        self.shutdown()
-
-    @classmethod
-    @contextmanager
-    def run(cls, *, context: TadaRunContext) -> Iterator[Self]:
-        runtime = cls(context=context)
-        try:
-            yield runtime
-        finally:
-            runtime.shutdown()

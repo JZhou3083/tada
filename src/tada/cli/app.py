@@ -139,10 +139,4 @@ def main():
     app.callback(invoke_without_command=True)(create_entrypoint_callback(run_context))
 
     with AppRuntime(context=run_context):
-        try:
-            app()
-        except Exception as exc:
-            run_context.mark_failed(exc)
-            raise
-        else:
-            run_context.mark_completed()
+        app()
