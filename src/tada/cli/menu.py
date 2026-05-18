@@ -2,7 +2,7 @@ import questionary
 import typer
 from questionary import Choice
 
-from tada.cli.commands._base import AppCommand
+from tada.cli.commands.base import AppCommand
 from tada.cli.display.console import console
 
 

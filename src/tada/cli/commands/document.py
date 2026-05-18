@@ -10,7 +10,7 @@ from tada.application.document_workbook import (
     DocumentWorkbookRequest,
     document_workbook,
 )
-from tada.cli.commands._base import AppCommand
+from tada.cli.commands.base import AppCommand
 from tada.cli.config import cli_config
 from tada.cli.display.banners import (
     print_debug_notice_banner,

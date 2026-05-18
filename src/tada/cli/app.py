@@ -2,6 +2,7 @@ import warnings
 
 import typer
 
+from tada.cli.commands.base import AppCommand
 from tada.cli.commands.chat import COMMAND as CHAT_COMMAND
 from tada.cli.commands.compare import COMMAND as COMPARE_COMMAND
 from tada.cli.commands.document import COMMAND as DOCUMENT_COMMAND
@@ -36,7 +37,7 @@ app = typer.Typer(
 )
 
 
-ALL_COMMANDS = [
+ALL_COMMANDS: list[AppCommand] = [
     DOCUMENT_COMMAND,
     CHAT_COMMAND,
     COMPARE_COMMAND,
