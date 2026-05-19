@@ -3,6 +3,7 @@ from pathlib import Path
 
 import questionary
 import typer
+from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 from opentelemetry import trace
 from questionary import Choice
 from rich.live import Live
@@ -53,7 +54,12 @@ def _resolve_workbook_arg(workbook_path: WorkbookOpt | None) -> Path:
         return workbook_path
 
     try:
-        with tracer.start_as_current_span("cli.prompt.workbook_path"):
+        with tracer.start_as_current_span("cli.prompt.workbook_path") as prompt_span:
+            prompt_span.set_attribute(
+                SpanAttributes.OPENINFERENCE_SPAN_KIND,
+                OpenInferenceSpanKindValues.CHAIN.value,
+            )
+
             return ask_for_file_path(
                 "Enter the path to your Tableau workbook (.twb or .twbx)",
                 must_exist=True,
@@ -85,7 +91,12 @@ def _resolve_output_arg(output_path: OutputOpt | None, workbook_path: Path) -> P
 
     default_output_path = str(Path("output") / workbook_path.with_suffix(".md").name)
     try:
-        with tracer.start_as_current_span("cli.prompt.output_path"):
+        with tracer.start_as_current_span("cli.prompt.output_path") as prompt_span:
+            prompt_span.set_attribute(
+                SpanAttributes.OPENINFERENCE_SPAN_KIND,
+                OpenInferenceSpanKindValues.CHAIN.value,
+            )
+
             return ask_for_file_path(
                 "Enter the path to save generated documentation to after completion (.md)",
                 default=default_output_path,
@@ -128,7 +139,12 @@ def _resolve_sections_arg(
 
     choices = [Choice(title=s.value, value=s) for s in list(WorkbookSection)]
     try:
-        with tracer.start_as_current_span("cli.prompt.sections"):
+        with tracer.start_as_current_span("cli.prompt.sections") as prompt_span:
+            prompt_span.set_attribute(
+                SpanAttributes.OPENINFERENCE_SPAN_KIND,
+                OpenInferenceSpanKindValues.CHAIN.value,
+            )
+
             return questionary.checkbox(
                 "Select sections to document",
                 choices,
@@ -161,7 +177,12 @@ def run_document(
         sections: Specific workbook sections to document.
         all_sections: Whether to document all available workbook sections.
     """
-    with tracer.start_as_current_span("command.document"):
+    with tracer.start_as_current_span("command.document") as document_span:
+        document_span.set_attribute(
+            SpanAttributes.OPENINFERENCE_SPAN_KIND,
+            OpenInferenceSpanKindValues.CHAIN.value,
+        )
+
         workbook_path = _resolve_workbook_arg(workbook_path)
         output_path = _resolve_output_arg(output_path, workbook_path)
         sections = _resolve_sections_arg(sections, all_sections)

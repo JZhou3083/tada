@@ -1,6 +1,7 @@
 import warnings
 
 import typer
+from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 from opentelemetry import trace
 
 from tada.cli.commands.base import AppCommand
@@ -62,7 +63,12 @@ def handle_entrypoint(
         run_context: Runtime context for the current TaDA execution.
         debug: Whether debug mode should be enabled for this invocation.
     """
-    with tracer.start_as_current_span("cli.entrypoint"):
+    with tracer.start_as_current_span("cli.entrypoint") as span:
+        span.set_attribute(
+            SpanAttributes.OPENINFERENCE_SPAN_KIND,
+            OpenInferenceSpanKindValues.CHAIN.value,
+        )
+
         cli_options = TadaCliOptions(debug=debug)
 
         ctx.obj = TadaCliState(
@@ -80,7 +86,12 @@ def handle_entrypoint(
     if ctx.invoked_subcommand is not None:
         return
 
-    with tracer.start_as_current_span("cli.interactive_menu"):
+    with tracer.start_as_current_span("cli.interactive_menu") as span:
+        span.set_attribute(
+            SpanAttributes.OPENINFERENCE_SPAN_KIND,
+            OpenInferenceSpanKindValues.CHAIN.value,
+        )
+
         # No subcommand -> route to the interactive launcher
         print_command_header(
             ctx,
@@ -141,5 +152,10 @@ def main():
     app.callback(invoke_without_command=True)(create_entrypoint_callback(run_context))
 
     with AppRuntime(context=run_context):
-        with tracer.start_as_current_span("cli.run"):
+        with tracer.start_as_current_span("cli.run") as root_span:
+            root_span.set_attribute(
+                SpanAttributes.OPENINFERENCE_SPAN_KIND,
+                OpenInferenceSpanKindValues.AGENT.value,
+            )
+
             app()
