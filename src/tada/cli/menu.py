@@ -52,4 +52,4 @@ def prompt_for_command(ctx: typer.Context, commands: list[AppCommand]):
         console.print("[bold red]Error[/bold red] Unknown command selected.")
         raise typer.Exit(code=1)
 
-    handler(ctx=ctx)
+    handler(ctx)
