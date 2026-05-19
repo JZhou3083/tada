@@ -12,7 +12,7 @@ from tada.cli.display.console import console
 from tada.cli.menu import prompt_for_command
 from tada.cli.options import DebugOpt
 from tada.cli.state import TadaCliOptions, TadaCliState
-from tada.config.settings import TadaSettings
+from tada.config.settings import settings
 from tada.observability.logging import configure_logging
 from tada.runtime.context import TadaRunContext
 from tada.runtime.lifecycle import AppRuntime
@@ -161,7 +161,6 @@ def main():
     builds the CLI application, executes it inside the TaDA runtime lifecycle,
     and records whether the run completed or failed.
     """
-    settings = TadaSettings()
     run_context = TadaRunContext.create(state_dir=settings.state_dir)
 
     app = create_tada_app(run_context=run_context)

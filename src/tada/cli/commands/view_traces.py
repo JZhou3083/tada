@@ -1,42 +1,32 @@
-import logging
 import time
-import warnings
-from pathlib import Path
+from contextlib import ExitStack
 
-import pandas as pd
 import typer
 from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 from opentelemetry import trace
 from rich.panel import Panel
-from sqlalchemy.exc import SAWarning
 
 from tada.cli.commands.base import AppCommand
 from tada.cli.display.banners import print_command_header
 from tada.cli.display.console import console
+from tada.cli.display.errors import print_typer_error
 from tada.cli.state import TadaCliState, get_cli_state
+from tada.config.settings import settings
+from tada.observability.phoenix_launcher import (
+    PhoenixImportError,
+    PhoenixLaunchError,
+    launch_phoenix,
+)
+from tada.observability.trace_retrieval import (
+    NoReadableTracesFound,
+    NoTraceFilesFound,
+    RunsDirectoryNotFound,
+    discover_trace_files,
+    load_traces,
+)
+from tada.runtime.context import RUNS_DIR
 
 tracer = trace.get_tracer(__name__)
-
-
-def _silence_phoenix_noise() -> None:
-    warnings.filterwarnings(
-        "ignore",
-        message=r".*Skipped unsupported reflection of expression-based index.*",
-        category=SAWarning,
-    )
-
-    logging.getLogger("phoenix.server.app").setLevel(logging.ERROR)
-
-
-def _print_typer_error(message: str) -> None:
-    console.print(
-        Panel(
-            message,
-            title="Error",
-            title_align="left",
-            border_style="red",
-        )
-    )
 
 
 def run_view_traces(cli_state: TadaCliState) -> None:
@@ -51,114 +41,82 @@ def run_view_traces(cli_state: TadaCliState) -> None:
             OpenInferenceSpanKindValues.CHAIN.value,
         )
 
-        runs_path = Path(".tada") / "runs"
-
-        if not runs_path.exists():
-            _print_typer_error(
-                f"Runs folder not found. Expected to find runs at: [dim]{runs_path}[/dim]"
-            )
-            raise typer.Exit(1)
-
-        trace_paths = sorted(runs_path.glob("*/traces.parquet"))
-
-        if not trace_paths:
-            _print_typer_error(
-                f"No trace files found. Expected to find files matching: "
-                f"[dim]{runs_path}/*/traces.parquet[/dim]"
-            )
-            raise typer.Exit(1)
-
         try:
             import phoenix as px
         except ImportError:
-            _print_typer_error(
+            print_typer_error(
+                console,
                 "[bold red]Missing optional dependency[/bold red]\n\n"
                 "The trace viewer requires the optional dependency "
                 "[bold]trace-viewer[/bold].\n\n"
                 "Install it with:\n"
-                "[bold green]pip install tada[trace-viewer][/bold green]"
+                "[bold green]pip install tada[trace-viewer][/bold green]",
             )
             raise typer.Exit(1)
 
-        session = None
+        runs_path = settings.state_dir / RUNS_DIR
         try:
-            with console.status("[cyan]Loading traces...[/cyan]", spinner="dots"):
-                trace_frames: list[pd.DataFrame] = []
-                skipped_files: list[str] = []
-
-                for trace_path in trace_paths:
-                    # Defend against:
-                    # ArrowInvalid: Could not open Parquet input source '<Buffer>':
-                    # Parquet file size is 0 bytes
-                    if trace_path.stat().st_size == 0:
-                        skipped_files.append(f"{trace_path} (empty file)")
-                        continue
-
-                    try:
-                        df = pd.read_parquet(trace_path)
-                    except Exception as exc:
-                        skipped_files.append(
-                            f"{trace_path} ({type(exc).__name__}: {exc})"
-                        )
-                        continue
-
-                    if df.empty:
-                        skipped_files.append(f"{trace_path} (no rows)")
-                        continue
-
-                    df = df.copy()
-                    df["tada_run_id"] = trace_path.parent.name
-                    df["tada_trace_file"] = str(trace_path)
-
-                    trace_frames.append(df)
-
-                if not trace_frames:
-                    detail = "\n".join(f"- {file}" for file in skipped_files[:10])
-
-                    _print_typer_error(
-                        "No readable traces found.\n\n"
-                        "Trace files were discovered, but none contained readable trace rows."
-                        + (f"\n\nSkipped files:\n{detail}" if detail else "")
-                    )
-                    raise typer.Exit(1)
-
-                traces_df = pd.concat(trace_frames, ignore_index=True)
-
-            with console.status("[cyan]Starting Phoenix...[/cyan]", spinner="dots"):
-                _silence_phoenix_noise()
-
-                trace_dataset = px.TraceDataset(traces_df)
-                session = px.launch_app(trace=trace_dataset)
-
-            console.print(
-                Panel.fit(
-                    "[bold green]Trace viewer is running[/bold green]\n\n"
-                    f"Loaded [bold]{len(traces_df):,}[/bold] trace rows from "
-                    f"[bold]{len(trace_frames):,}[/bold] run(s).\n\n"
-                    f"Open Phoenix here:\n"
-                    f"[bold blue underline]{session.url if session else ''}[/bold blue underline]\n\n"
-                    "[dim]Press Ctrl+C to stop the viewer.[/dim]",
-                    border_style="green",
-                )
+            files = discover_trace_files(runs_path)
+            result = load_traces(files, max_files=100)
+        except RunsDirectoryNotFound as e:
+            print_typer_error(
+                console, f"Runs folder not found: [dim]{e.runs_path}[/dim]"
             )
+            raise typer.Exit(1)
+        except NoTraceFilesFound as e:
+            print_typer_error(
+                console, f"No trace files found. Expected: [dim]{e.pattern}[/dim]"
+            )
+            raise typer.Exit(1)
+        except NoReadableTracesFound as e:
+            detail = "\n".join(
+                f"- {s.path} ({s.reason.value}: {s.detail})" for s in e.skipped[:10]
+            )
+            print_typer_error(
+                console, "No readable traces found.\n\nSkipped files:\n" + detail
+            )
+            raise typer.Exit(1)
 
-            while True:
-                time.sleep(1)
+        traces_df = result.traces
+
+        try:
+            with ExitStack() as stack:
+                # Show spinner only during startup
+                with console.status("[cyan]Starting Phoenix...[/cyan]", spinner="dots"):
+                    phoenix = stack.enter_context(
+                        launch_phoenix(traces_df, suppress_warnings=True)
+                    )
+
+                # Spinner is now gone; session is still alive (managed by ExitStack)
+                console.print(
+                    Panel.fit(
+                        "[bold green]Trace viewer is running[/bold green]\n\n"
+                        f"Loaded [bold]{len(traces_df):,}[/bold] trace rows.\n"
+                        f"Open Phoenix here:\n"
+                        f"[bold blue underline]{phoenix.url}[/bold blue underline]\n\n"
+                        "[dim]Press Ctrl+C to stop the viewer.[/dim]",
+                        border_style="green",
+                    )
+                )
+
+                while True:
+                    time.sleep(1)
 
         except KeyboardInterrupt:
             console.print("\n[yellow]Shutting down trace viewer...[/yellow]")
             raise typer.Exit(0)
 
-        except Exception as exc:
-            _print_typer_error(
-                "[bold red]Failed to launch trace viewer[/bold red]\n\n"
-                f"{type(exc).__name__}: {exc}",
+        except PhoenixImportError as exc:
+            print_typer_error(
+                console, f"[bold red]Phoenix not available[/bold red]\n\n{exc}"
             )
             raise typer.Exit(1)
 
-        finally:
-            if session:
-                session.end()
+        except PhoenixLaunchError as exc:
+            print_typer_error(
+                console, f"[bold red]Failed to launch trace viewer[/bold red]\n\n{exc}"
+            )
+            raise typer.Exit(1)
 
 
 def handle_view_traces(

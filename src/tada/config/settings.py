@@ -42,3 +42,6 @@ class TadaSettings(BaseSettings):
         the application receives an expanded, resolved path.
         """
         return value.expanduser().resolve()
+
+
+settings = TadaSettings()
