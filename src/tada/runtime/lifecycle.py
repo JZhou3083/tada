@@ -111,7 +111,6 @@ class AppRuntime:
         self.tracer_provider: TracerProvider | None = None
         self.span_exporter: InMemorySpanExporter | None = None
         self._is_shutdown = False
-        self._is_shutdown = False
 
     def _setup_tracing(self) -> None:
         self.trace_file = open(
