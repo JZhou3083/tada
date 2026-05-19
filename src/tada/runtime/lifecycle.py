@@ -1,17 +1,18 @@
 import json
-import os
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Self, TextIO
 
+from openinference.instrumentation.google_genai import GoogleGenAIInstrumentor
+from openinference.instrumentation.langchain import LangChainInstrumentor
 from opentelemetry import trace as otel_trace
-from opentelemetry.instrumentation.langchain import LangchainInstrumentor
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import (
-    ConsoleSpanExporter,
     SimpleSpanProcessor,
 )
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
+from tada.observability.trace_writer import readable_spans_to_dataframe
 from tada.runtime.context import TadaRunContext
 
 
@@ -104,21 +105,13 @@ class AppRuntime:
     def __init__(self, *, context: TadaRunContext) -> None:
         self.context = context
 
-        self.trace_file: TextIO | None = None
-        self.tracer_provider: TracerProvider | None = None
-
         self.run_state = RunStateStore(context)
 
+        self.trace_file: TextIO | None = None
+        self.tracer_provider: TracerProvider | None = None
+        self.span_exporter: InMemorySpanExporter | None = None
         self._is_shutdown = False
-
-        self._configure_environment()
-
-    def _configure_environment(self) -> None:
-        # Tell Langfuse SDK not to create its own exporter/transport.
-        os.environ.setdefault("LANGFUSE_SECRET_KEY", "local")
-        os.environ.setdefault("LANGFUSE_PUBLIC_KEY", "local")
-        os.environ.setdefault("LANGFUSE_HOST", "http://localhost:0")
-        os.environ["OTEL_SDK_DISABLED"] = "false"
+        self._is_shutdown = False
 
     def _setup_tracing(self) -> None:
         self.trace_file = open(
@@ -127,15 +120,15 @@ class AppRuntime:
             encoding="utf-8",
         )
 
+        self.span_exporter = InMemorySpanExporter()
+
         self.tracer_provider = TracerProvider()
-        self.tracer_provider.add_span_processor(
-            SimpleSpanProcessor(ConsoleSpanExporter(out=self.trace_file))
-        )
+        self.tracer_provider.add_span_processor(SimpleSpanProcessor(self.span_exporter))
 
-        # Set the provider globally BEFORE langfuse imports.
+        LangChainInstrumentor().instrument(tracer_provider=self.tracer_provider)
+        GoogleGenAIInstrumentor().instrument(tracer_provider=self.tracer_provider)
+
         otel_trace.set_tracer_provider(self.tracer_provider)
-
-        LangchainInstrumentor().instrument()
 
     def __enter__(self) -> Self:
         self._setup_tracing()
@@ -157,6 +150,16 @@ class AppRuntime:
 
         try:
             if self.tracer_provider:
+                spans = []
+
+                if self.span_exporter:
+                    spans = self.span_exporter.get_finished_spans()
+
+                if spans:
+                    # TODO: type issue?
+                    df = readable_spans_to_dataframe(spans)
+                    df.to_parquet(self.context.paths.traces_path, index=False)
+
                 self.tracer_provider.shutdown()
         finally:
             if self.trace_file:
