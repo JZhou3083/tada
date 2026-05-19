@@ -1,7 +1,7 @@
 import json
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Self, TextIO
+from typing import Any, Self
 
 from openinference.instrumentation.google_genai import GoogleGenAIInstrumentor
 from openinference.instrumentation.langchain import LangChainInstrumentor
@@ -107,18 +107,11 @@ class AppRuntime:
 
         self.run_state = RunStateStore(context)
 
-        self.trace_file: TextIO | None = None
         self.tracer_provider: TracerProvider | None = None
         self.span_exporter: InMemorySpanExporter | None = None
         self._is_shutdown = False
 
     def _setup_tracing(self) -> None:
-        self.trace_file = open(
-            self.context.paths.traces_path,
-            "a",
-            encoding="utf-8",
-        )
-
         self.span_exporter = InMemorySpanExporter()
 
         self.tracer_provider = TracerProvider()
@@ -161,6 +154,4 @@ class AppRuntime:
 
                 self.tracer_provider.shutdown()
         finally:
-            if self.trace_file:
-                self.trace_file.close()
             self._is_shutdown = True
