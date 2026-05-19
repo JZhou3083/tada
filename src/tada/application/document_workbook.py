@@ -1,9 +1,6 @@
 import logging
-import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
-
-from langgraph.checkpoint.sqlite import SqliteSaver
 
 from tada.application.graph_runner import run_graph_with_status
 from tada.application.ports import NullStatusSink, StatusSink
@@ -61,11 +58,12 @@ def document_workbook(
         workbook.write_debug(run_config.artifacts_dir)
         logger.debug("Wrote debug artifacts to %s", run_config.artifacts_dir)
 
-    if run_config.checkpoints_path:
-        checkpointer = SqliteSaver(sqlite3.connect(run_config.checkpoints_path))
-        workflow = build_documentation_workflow(checkpointer=checkpointer)
-    else:
-        workflow = build_documentation_workflow()
+    # if run_config.checkpoints_path:
+    #     checkpointer = SqliteSaver(sqlite3.connect(run_config.checkpoints_path))
+    #     workflow = build_documentation_workflow(checkpointer=checkpointer)
+    # else:
+    # TODO: fix checkpointer
+    workflow = build_documentation_workflow()
 
     logger.debug(
         "Invoking documentation graph...",
@@ -79,6 +77,7 @@ def document_workbook(
             "run_summary_step": request.run_summary_step,
         },
         status_sink=sink,
+        thread_id=run_config.run_id,
     )
 
     final_doc = final_state["final_doc"]
