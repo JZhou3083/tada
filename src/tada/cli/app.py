@@ -28,17 +28,6 @@ warnings.filterwarnings(
 
 tracer = trace.get_tracer(__name__)
 
-app = typer.Typer(
-    name="Tableau Documentation Agent (TaDA)",
-    no_args_is_help=False,
-    rich_markup_mode="rich",
-    epilog=(
-        "[bold cyan]Tip:[/bold cyan] Run [bold]tada[/bold] with no arguments to "
-        "launch the interactive menu."
-    ),
-)
-
-
 ALL_COMMANDS: list[AppCommand] = [
     DOCUMENT_COMMAND,
     CHAT_COMMAND,
@@ -135,21 +124,49 @@ def create_entrypoint_callback(run_context: TadaRunContext):
     return entrypoint
 
 
-def main():
-    """Run the TaDA command-line application.
+def create_tada_app(run_context: TadaRunContext) -> typer.Typer:
+    """Create and configure the TaDA Typer CLI application.
 
-    This is the console-script entrypoint. It registers available commands,
-    creates the runtime context, wires the root Typer callback, executes the app
-    inside the TaDA runtime lifecycle, and records whether the run completed or
-    failed.
+    This function constructs a fresh ``typer.Typer`` instance, registers all available
+    commands (discovered via ALL_COMMANDS), and wires the root callback that initialises
+    CLI state and handles interactive fallback.
+
+    Args:
+        run_context: Runtime context for the current TaDA execution. This is
+            injected into the root callback and made available to all commands
+            via ``TadaCliState``.
+
+    Returns:
+        A fully configured ``typer.Typer`` application ready to be invoked.
     """
+    app = typer.Typer(
+        name="Tableau Documentation Agent (TaDA)",
+        no_args_is_help=False,
+        rich_markup_mode="rich",
+        epilog=(
+            "[bold cyan]Tip:[/bold cyan] Run [bold]tada[/bold] with no arguments to "
+            "launch the interactive menu."
+        ),
+    )
+
     for cmd in ALL_COMMANDS:
         cmd.register(app)
 
+    app.callback(invoke_without_command=True)(create_entrypoint_callback(run_context))
+    return app
+
+
+def main():
+    """Run the TaDA command-line application.
+
+    This is the console-script entrypoint. It creates the runtime context,
+    builds the CLI application, executes it inside the TaDA runtime lifecycle,
+    and records whether the run completed or failed.
+    """
     settings = TadaSettings()
     run_context = TadaRunContext.create(state_dir=settings.state_dir)
 
-    app.callback(invoke_without_command=True)(create_entrypoint_callback(run_context))
+    app = create_tada_app(run_context=run_context)
 
     with AppRuntime(context=run_context):
         with tracer.start_as_current_span("cli.run") as root_span:
