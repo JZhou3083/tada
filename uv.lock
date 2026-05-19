@@ -2977,7 +2977,7 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
-trace-viewer = [
+view-traces = [
     { name = "arize-phoenix" },
 ]
 
@@ -2990,7 +2990,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "arize-phoenix", marker = "extra == 'trace-viewer'", specifier = ">=15.10.1" },
+    { name = "arize-phoenix", marker = "extra == 'view-traces'", specifier = ">=15.10.1" },
     { name = "fastparquet", specifier = ">=2026.5.0" },
     { name = "google-genai", specifier = ">=1.73.1" },
     { name = "grandalf", specifier = ">=0.8" },
@@ -3012,7 +3012,7 @@ requires-dist = [
     { name = "rich", specifier = ">=15.0.0" },
     { name = "typer", specifier = ">=0.24.1" },
 ]
-provides-extras = ["trace-viewer"]
+provides-extras = ["view-traces"]
 
 [package.metadata.requires-dev]
 dev = [

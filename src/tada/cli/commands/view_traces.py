@@ -46,11 +46,13 @@ def run_view_traces(cli_state: TadaCliState) -> None:
         except ImportError:
             print_typer_error(
                 console,
-                "[bold red]Missing optional dependency[/bold red]\n\n"
-                "The trace viewer requires the optional dependency "
-                "[bold]trace-viewer[/bold].\n\n"
+                "Missing optional dependency\n\n"
+                "The view-traces command requires the optional dependency "
+                "[bold]view-traces[/bold].\n\n"
                 "Install it with:\n"
-                "[bold green]pip install tada[trace-viewer][/bold green]",
+                "[bold green]uv sync --extra view-traces[/bold green]\n"
+                "or\n"
+                "[bold green]pip install -e '.[view-traces]'[/bold green]",
             )
             raise typer.Exit(1)
 
@@ -107,15 +109,11 @@ def run_view_traces(cli_state: TadaCliState) -> None:
             raise typer.Exit(0)
 
         except PhoenixImportError as exc:
-            print_typer_error(
-                console, f"[bold red]Phoenix not available[/bold red]\n\n{exc}"
-            )
+            print_typer_error(console, f"Phoenix not available\n\n{exc}")
             raise typer.Exit(1)
 
         except PhoenixLaunchError as exc:
-            print_typer_error(
-                console, f"[bold red]Failed to launch trace viewer[/bold red]\n\n{exc}"
-            )
+            print_typer_error(console, f"Failed to launch trace viewer\n\n{exc}")
             raise typer.Exit(1)
 
 
