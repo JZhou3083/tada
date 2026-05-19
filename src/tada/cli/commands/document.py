@@ -186,15 +186,13 @@ def run_document(
         workbook_path = _resolve_workbook_arg(workbook_path)
         output_path = _resolve_output_arg(output_path, workbook_path)
         sections = _resolve_sections_arg(sections, all_sections)
-        run_summary_step = questionary.confirm(
-            "Include a top-level summary of selected sections?"
-        ).ask()
-        # max_retries = questionary.select(
-        #     "Choose the permitted number of generation retries"
-        # )
-        # max_retries = questionary.select(
-        #     "Choose whether to enable evaluation if 0 retries?"
-        # )
+        try:
+            run_summary_step = questionary.confirm(
+                "Include a top-level summary of selected sections?"
+            ).unsafe_ask()
+        except KeyboardInterrupt:
+            console.print("[yellow]Cancelled.")
+            raise typer.Exit(code=0)
 
         request = DocumentWorkbookRequest(
             workbook_path=workbook_path,
