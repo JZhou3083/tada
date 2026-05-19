@@ -199,7 +199,7 @@ def register(app: typer.Typer) -> None:
 
 
 COMMAND = AppCommand(
-    name="view traces",
+    name="view-traces",
     interactive_menu_desc="Launch a local Arize Phoenix server to inspect previous runs",
     register=register,
     run=handle_view_traces,
