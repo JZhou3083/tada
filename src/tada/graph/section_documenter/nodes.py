@@ -1,6 +1,5 @@
 import json
 import logging
-import time
 from functools import partial
 from importlib import resources
 from typing import Any
@@ -21,15 +20,6 @@ from tada.graph.section_documenter.state import (
 from tada.llm.client import get_vertexai_gateway
 from tada.llm.configs import build_base_generation_config
 from tada.llm.schemas import EvalResult
-
-from langfuse import observe
-from opentelemetry import trace
-from opentelemetry.trace import StatusCode
-from tada.observability.langfuse_client import get_langfuse
-from tada.observability.trace_printer import get_prop_attrs, update_generation
-from tada.observability.reporter import log_span
-
-langfuse = get_langfuse()
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +87,7 @@ def _add_feedback_to_prompt(prompt: str, feedback: list[EvalResult]) -> str:
             """
     )
 
-@observe(name="generate_section_documentation", as_type="generation")
+
 def generate_section_documentation(
     state: SectionDocumenterState,
 ) -> dict[str, Any]:
@@ -118,43 +108,29 @@ def generate_section_documentation(
     if "evaluation_history" in state:
         full_prompt = _add_feedback_to_prompt(full_prompt, state["evaluation_history"])
 
-    try:
-        client_wrapper = get_vertexai_gateway()
-        system_instruction = (resources.files("tada") / "prompts" / "system.md").read_text(
-            encoding="utf-8"
-        )
-
-        span = trace.get_current_span()
-        labels = get_prop_attrs(span.attributes)
-
-        contents = client_wrapper.contents_from_text_parts(
-        [full_prompt, state["response_template"], json.dumps(state["data"])]
-        )
-
-        response, section_docs = client_wrapper.generate_text(
-            model="gemini-3-flash-preview",
-            contents=contents,
-            config=build_base_generation_config(system_instruction=system_instruction, labels=labels),
-        )
-        span.set_status(StatusCode.OK)
-    except Exception as e:
-        span.set_status(StatusCode.ERROR, str(e))
-        span.record_exception(e)
-        raise
-
-    update_generation(response=response,
-                      langfuse=langfuse,
-                      metadata={"section": state["section"].value}
+    client_wrapper = get_vertexai_gateway()
+    system_instruction = (resources.files("tada") / "prompts" / "system.md").read_text(
+        encoding="utf-8"
     )
 
-    log_span(span=span)
+    contents = client_wrapper.contents_from_text_parts(
+        [full_prompt, state["response_template"], json.dumps(state["data"])]
+    )
+
+    _, section_docs = client_wrapper.generate_text(
+        model="gemini-3-flash-preview",
+        contents=contents,
+        config=build_base_generation_config(
+            system_instruction=system_instruction,
+        ),
+    )
 
     return {
         "generated_section_doc": section_docs,
         "generation_attempts": state["generation_attempts"] + 1,
     }
 
-@observe(name="evaluate_section_documentation", as_type="generation")
+
 def evaluate_section_documentation(state: SectionDocumenterState) -> dict[str, Any]:
     emit_graph_status(
         name=state["section"].value,
@@ -175,45 +151,23 @@ def evaluate_section_documentation(state: SectionDocumenterState) -> dict[str, A
     evaluator_prompt = (
         resources.files("tada") / "prompts" / "evaluation.md"
     ).read_text(encoding="utf-8")
+    client_wrapper = get_vertexai_gateway()
 
-    try:
-        client_wrapper = get_vertexai_gateway()
-
-        span = trace.get_current_span()
-        labels = get_prop_attrs(span.attributes)
-
-        contents = client_wrapper.contents_from_text_parts(
+    contents = client_wrapper.contents_from_text_parts(
         [
             evaluator_prompt,
             json.dumps(state["data"]),
             state["generated_section_doc"],
             state["response_template"],
         ]
-        )
-
-        response, evaluation = client_wrapper.generate_structured_response(
-            model="gemini-3-flash-preview",
-            contents=contents,
-            schema_model=EvalResult,
-            config=build_base_generation_config(labels=labels),
-        )
-        span.set_status(StatusCode.OK if evaluation.passed else StatusCode.ERROR)
-    except Exception as e:
-        span.set_status(StatusCode.ERROR, str(e))
-        span.record_exception(e)
-        raise
-
-    update_generation(response=response,
-                      langfuse=langfuse,
-                      metadata={"name": "documentation_quality",
-                                "section": state["section"].value,
-                                "result": evaluation.passed,
-                                "feedback": evaluation.feedback_for_generator,
-                                "retry_count": state["generation_attempts"]
-                                }
     )
 
-    log_span(span=span)
+    _, evaluation = client_wrapper.generate_structured_response(
+        model="gemini-3-flash-preview",
+        contents=contents,
+        schema_model=EvalResult,
+        config=build_base_generation_config(),
+    )
 
     # Update graph status with any resulting issues / clear issues if there are none
     emit_graph_status(
