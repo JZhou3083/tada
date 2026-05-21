@@ -11,10 +11,10 @@ from tada.cli.display.console import console
 from tada.cli.menu import prompt_for_command
 from tada.cli.options import DebugOpt
 from tada.cli.state import TadaCliOptions, TadaCliState
-from tada.config.settings import settings
 from tada.observability.logging import configure_logging
 from tada.runtime.context import TadaRunContext
 from tada.runtime.lifecycle import AppRuntime
+from tada.settings import settings
 
 # Silence this specific auth-warning which Google SDK prints directly to console
 warnings.filterwarnings(
