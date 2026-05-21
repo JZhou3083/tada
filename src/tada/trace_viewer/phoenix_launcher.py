@@ -3,96 +3,78 @@ from __future__ import annotations
 import logging
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Any, Dict, Iterator, Optional
+from typing import Any, Iterator, Mapping
 
-import pandas as pd
+from tada.trace_viewer._optional import require_module
 
 logger = logging.getLogger(__name__)
-
-
-# ------------------------
-# Domain errors
-# ------------------------
 
 
 class PhoenixError(RuntimeError):
     """Base class for Phoenix launch failures."""
 
 
-class PhoenixImportError(PhoenixError):
-    """Phoenix is not installed or cannot be imported."""
-
-
 class PhoenixLaunchError(PhoenixError):
     """Phoenix failed to launch."""
 
 
-# ------------------------
-# Structured results
-# ------------------------
-
-
 @dataclass(frozen=True)
 class PhoenixSessionInfo:
-    """Small wrapper to return the session and URL in a stable shape."""
+    """Information about a running Phoenix session."""
 
     session: Any
-    url: str
-
-
-# ------------------------
-# API
-# ------------------------
+    url: str | None
 
 
 @contextmanager
 def launch_phoenix(
-    traces_df: pd.DataFrame,
+    traces_df: Any,
     *,
-    launch_kwargs: Optional[Dict[str, Any]] = None,
+    launch_kwargs: Mapping[str, Any] | None = None,
 ) -> Iterator[PhoenixSessionInfo]:
     """
-    Launch an Arize Phoenix session from a traces dataframe and ensure cleanup.
+    Launch a local Arize Phoenix app from an OpenInference traces DataFrame.
 
-    - No printing, no sleeping, no CLI exits.
-    - Caller handles UX and process lifetime.
-    - Always ends the session on exit if it was created.
-
-    Raises:
-      - PhoenixImportError
-      - PhoenixLaunchError
+    Phoenix and pandas are optional dependencies, so they are imported lazily.
     """
-    if traces_df is None or traces_df.empty:
-        raise PhoenixLaunchError("Cannot launch Phoenix: traces_df is empty.")
+    px = require_module("phoenix")
 
-    launch_kwargs = launch_kwargs or {}
+    kwargs = dict(launch_kwargs or {})
 
-    session = None
     try:
-        try:
-            import phoenix as px  # type: ignore
-        except Exception as exc:
-            raise PhoenixImportError(
-                "Phoenix could not be imported. Ensure 'arize-phoenix' is installed."
-            ) from exc
-
-        # Construct dataset and launch
         trace_dataset = px.TraceDataset(traces_df)
-        session = px.launch_app(trace=trace_dataset, **launch_kwargs)
-
-        # Some phoenix session objects have `.url`; keep it defensive.
-        url = getattr(session, "url", "") or ""
-        yield PhoenixSessionInfo(session=session, url=url)
-
-    except PhoenixError:
-        # Preserve our typed exceptions
-        raise
+        session = px.launch_app(trace=trace_dataset, **kwargs)
     except Exception as exc:
-        raise PhoenixLaunchError(f"{type(exc).__name__}: {exc}") from exc
+        raise PhoenixLaunchError(
+            f"Failed to launch Phoenix trace viewer: {exc}"
+        ) from exc
+
+    url = _get_session_url(session)
+
+    try:
+        yield PhoenixSessionInfo(session=session, url=url)
     finally:
-        # Best-effort shutdown
-        if session is not None:
+        close = getattr(session, "close", None)
+        if callable(close):
             try:
-                session.end()
-            except Exception as exc:
-                logger.warning("Failed to end Phoenix session cleanly: %s", exc)
+                close()
+            except Exception:
+                logger.warning(
+                    "Failed to close Phoenix session cleanly.", exc_info=True
+                )
+
+
+def _get_session_url(session: Any) -> str | None:
+    for attr in ("url", "app_url", "base_url"):
+        value = getattr(session, attr, None)
+        if value:
+            return str(value)
+
+    view = getattr(session, "view", None)
+    if callable(view):
+        try:
+            return str(view())
+        except Exception:
+            return None
+
+    return None
