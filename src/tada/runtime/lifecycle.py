@@ -4,15 +4,12 @@ from pathlib import Path
 from typing import Any, Self
 
 from openinference.instrumentation.google_genai import GoogleGenAIInstrumentor
-from openinference.instrumentation.langchain import LangChainInstrumentor
-from opentelemetry import trace as otel_trace
+from opentelemetry import trace
+from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import (
-    SimpleSpanProcessor,
-)
-from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
-from tada.observability.trace_writer import readable_spans_to_dataframe
+from tada.observability.otel.jsonl_exporter import OpenInferenceJSONLSpanExporter
 from tada.runtime.context import TadaRunContext
 
 
@@ -104,23 +101,48 @@ class AppRuntime:
 
     def __init__(self, *, context: TadaRunContext) -> None:
         self.context = context
-
         self.run_state = RunStateStore(context)
 
         self.tracer_provider: TracerProvider | None = None
-        self.span_exporter: InMemorySpanExporter | None = None
+        self.span_processor: BatchSpanProcessor | None = None
+        self.span_exporter: OpenInferenceJSONLSpanExporter | None = None
+
         self._is_shutdown = False
+        self._is_instrumented = False
 
     def _setup_tracing(self) -> None:
-        self.span_exporter = InMemorySpanExporter()
+        """
+        Configure tracing with a local JSONL export.
+        """
+        resource = Resource.create(
+            {
+                "service.name": "tada-cli",
+                "service.instance.id": str(self.context.info.run_id),
+                "deployment.environment": "local",
+                "tada.run_id": str(self.context.info.run_id),
+            }
+        )
 
-        self.tracer_provider = TracerProvider()
-        self.tracer_provider.add_span_processor(SimpleSpanProcessor(self.span_exporter))
+        self.tracer_provider = TracerProvider(resource=resource)
 
-        LangChainInstrumentor().instrument(tracer_provider=self.tracer_provider)
+        self.span_exporter = OpenInferenceJSONLSpanExporter(
+            path=self.context.paths.traces_path
+        )
+
+        self.span_processor = BatchSpanProcessor(
+            self.span_exporter,
+            # Low overhead defaults for CLI/local use.
+            max_queue_size=512,
+            max_export_batch_size=128,
+            schedule_delay_millis=2_000,
+            export_timeout_millis=3_000,
+        )
+
+        self.tracer_provider.add_span_processor(self.span_processor)
+        trace.set_tracer_provider(self.tracer_provider)
+
         GoogleGenAIInstrumentor().instrument(tracer_provider=self.tracer_provider)
-
-        otel_trace.set_tracer_provider(self.tracer_provider)
+        self._is_instrumented = True
 
     def __enter__(self) -> Self:
         self._setup_tracing()
@@ -137,21 +159,23 @@ class AppRuntime:
             self.shutdown()
 
     def shutdown(self) -> None:
+        """
+        Flush and shutdown telemetry cleanly.
+
+        Important for CLI apps because the process may exit before
+        BatchSpanProcessor has exported queued spans.
+        """
         if self._is_shutdown:
             return
 
         try:
+            if self._is_instrumented:
+                GoogleGenAIInstrumentor().uninstrument()
+                self._is_instrumented = False
+
             if self.tracer_provider:
-                spans = []
-
-                if self.span_exporter:
-                    spans = self.span_exporter.get_finished_spans()
-
-                if spans:
-                    # TODO: type issue?
-                    df = readable_spans_to_dataframe(spans)
-                    df.to_parquet(self.context.paths.traces_path, index=False)
-
+                self.tracer_provider.force_flush(timeout_millis=5_000)
                 self.tracer_provider.shutdown()
+
         finally:
             self._is_shutdown = True

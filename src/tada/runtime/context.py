@@ -10,7 +10,7 @@ RUNS_DIR = "runs"
 
 RUN_METADATA_FILE = "run.json"
 LOGS_FILE = "app.log"
-TRACES_FILE = "traces.parquet"
+TRACES_FILE = "traces.jsonl"
 CHECKPOINTS_FILE = "checkpoints.db"
 ARTIFACTS_DIR = "artifacts"
 
