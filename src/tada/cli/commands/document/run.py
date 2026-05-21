@@ -21,12 +21,19 @@ from tada.cli.options import (
     WorkbookOpt,
 )
 from tada.cli.state import TadaCliState
+from tada.observability.otel.observe import observe
 
 tracer = trace.get_tracer(__name__)
 
 logger = logging.getLogger(__name__)
 
 
+@observe(
+    "command.document",
+    attributes={
+        SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN.value
+    },
+)
 def run_document(
     cli_state: TadaCliState,
     workbook_path: WorkbookOpt = None,
@@ -49,29 +56,23 @@ def run_document(
         sections: Specific workbook sections to document.
         all_sections: Whether to document all available workbook sections.
     """
-    with tracer.start_as_current_span("command.document") as document_span:
-        document_span.set_attribute(
-            SpanAttributes.OPENINFERENCE_SPAN_KIND,
-            OpenInferenceSpanKindValues.CHAIN.value,
-        )
+    workbook_path = resolve_workbook_arg(workbook_path)
+    output_path = resolve_output_arg(output_path, workbook_path)
+    sections = resolve_sections_arg(sections, all_sections)
+    run_summary_step = prompt_for_summary_flag()
 
-        workbook_path = resolve_workbook_arg(workbook_path)
-        output_path = resolve_output_arg(output_path, workbook_path)
-        sections = resolve_sections_arg(sections, all_sections)
-        run_summary_step = prompt_for_summary_flag()
+    request = DocumentWorkbookRequest(
+        workbook_path=workbook_path,
+        output_path=output_path,
+        sections=sections,
+        run_summary_step=run_summary_step,
+    )
 
-        request = DocumentWorkbookRequest(
-            workbook_path=workbook_path,
-            output_path=output_path,
-            sections=sections,
-            run_summary_step=run_summary_step,
-        )
+    run_config = DocumentWorkbookRunConfig(
+        run_id=cli_state.run_context.info.run_id,
+        debug=cli_state.cli_options.debug,
+        artifacts_dir=cli_state.run_context.paths.artifacts_dir,
+        checkpoints_path=cli_state.run_context.paths.checkpoints_path,
+    )
 
-        run_config = DocumentWorkbookRunConfig(
-            run_id=cli_state.run_context.info.run_id,
-            debug=cli_state.cli_options.debug,
-            artifacts_dir=cli_state.run_context.paths.artifacts_dir,
-            checkpoints_path=cli_state.run_context.paths.checkpoints_path,
-        )
-
-        run_document_with_progress(request, run_config)
+    run_document_with_progress(request, run_config)
