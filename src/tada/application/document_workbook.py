@@ -7,6 +7,7 @@ from tada.application.ports import NullStatusSink, StatusSink
 from tada.domain.sections import WorkbookSection
 from tada.domain.workbook import Workbook
 from tada.graph.workbook_documenter.graph import build_documentation_workflow
+from tada.observability.otel.observe import observe
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +36,7 @@ class DocumentWorkbookResult:
     final_doc: str
 
 
+@observe("app.document")
 def document_workbook(
     request: DocumentWorkbookRequest,
     *,

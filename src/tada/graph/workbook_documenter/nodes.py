@@ -8,6 +8,7 @@ from tada.graph.helpers import StepKind, emit_graph_status
 from tada.graph.workbook_documenter.state import OutputState, OverallState
 from tada.llm.client import get_vertexai_gateway
 from tada.llm.configs import build_base_generation_config
+from tada.observability.otel.observe import observe
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,7 @@ SECTION_ORDER = [
 ]
 
 
+@observe("langgraph.nodes.summarize_all_sections_documentation")
 def summarize_all_sections_documentation(state: OverallState) -> OutputState:
     docs_by_section = state["docs_by_section"]
     ordered_section_docs = [

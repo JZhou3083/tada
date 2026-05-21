@@ -20,6 +20,7 @@ from tada.graph.section_documenter.state import (
 from tada.llm.client import get_vertexai_gateway
 from tada.llm.configs import build_base_generation_config
 from tada.llm.schemas import EvalResult
+from tada.observability.otel.observe import observe
 
 logger = logging.getLogger(__name__)
 
@@ -88,6 +89,7 @@ def _add_feedback_to_prompt(prompt: str, feedback: list[EvalResult]) -> str:
     )
 
 
+@observe("langgraph.nodes.generate_section_documentation")
 def generate_section_documentation(
     state: SectionDocumenterState,
 ) -> dict[str, Any]:
@@ -131,6 +133,7 @@ def generate_section_documentation(
     }
 
 
+@observe("langgraph.nodes.evaluate_section_documentation")
 def evaluate_section_documentation(state: SectionDocumenterState) -> dict[str, Any]:
     emit_graph_status(
         name=state["section"].value,
