@@ -14,7 +14,6 @@ dependencies = [
   "lxml>=6.1.0",
   "lxml-stubs>=0.5.1",
   "openinference-instrumentation-google-genai>=1.0.2",
-  "openinference-instrumentation-langchain>=0.1.66",
   "opentelemetry-sdk>=1.41.1",
   "pandas>=3.0.3",
   "platformdirs>=4.9.6",
