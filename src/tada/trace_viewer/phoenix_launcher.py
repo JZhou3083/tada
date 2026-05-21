@@ -1,8 +1,6 @@
-# src/tada/observability/phoenix_launcher.py
 from __future__ import annotations
 
 import logging
-import warnings
 from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any, Dict, Iterator, Optional
@@ -43,29 +41,6 @@ class PhoenixSessionInfo:
 
 
 # ------------------------
-# Internal warning suppression
-# ------------------------
-
-
-def silence_phoenix_noise() -> None:
-    """
-    Suppress known noisy warnings during Phoenix startup.
-    Keep this minimal and well-scoped.
-    """
-    # Your CLI currently silences SAWarning about expression-based indexes. 【1-abd929】
-    try:
-        from sqlalchemy.exc import SAWarning
-    except Exception:
-        SAWarning = Warning  # fallback; safe but less specific
-
-    warnings.filterwarnings(
-        "ignore",
-        message=r".*Skipped unsupported reflection of expression-based index.*",
-        category=SAWarning,
-    )
-
-
-# ------------------------
 # API
 # ------------------------
 
@@ -74,7 +49,6 @@ def silence_phoenix_noise() -> None:
 def launch_phoenix(
     traces_df: pd.DataFrame,
     *,
-    suppress_warnings: bool = True,
     launch_kwargs: Optional[Dict[str, Any]] = None,
 ) -> Iterator[PhoenixSessionInfo]:
     """
@@ -90,9 +64,6 @@ def launch_phoenix(
     """
     if traces_df is None or traces_df.empty:
         raise PhoenixLaunchError("Cannot launch Phoenix: traces_df is empty.")
-
-    if suppress_warnings:
-        silence_phoenix_noise()
 
     launch_kwargs = launch_kwargs or {}
 

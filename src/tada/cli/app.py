@@ -6,7 +6,6 @@ from opentelemetry import trace
 
 from tada.cli.commands.base import AppCommand
 from tada.cli.commands.document import COMMAND as DOCUMENT_COMMAND
-from tada.cli.commands.view_traces import COMMAND as VIEW_TRACES_COMMAND
 from tada.cli.display.banners import print_command_header
 from tada.cli.display.console import console
 from tada.cli.menu import prompt_for_command
@@ -29,7 +28,6 @@ tracer = trace.get_tracer(__name__)
 
 ALL_COMMANDS: list[AppCommand] = [
     DOCUMENT_COMMAND,
-    VIEW_TRACES_COMMAND,
 ]
 
 

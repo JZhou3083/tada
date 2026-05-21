@@ -77,10 +77,10 @@ class TraceLoadResult:
 def discover_trace_files(
     runs_path: Path,
     *,
-    pattern: str = "*/traces.parquet",
+    pattern: str = "*/traces.jsonl",
 ) -> list[TraceFileInfo]:
     """
-    Discover trace parquet files under runs_path.
+    Discover trace jsonl files under runs_path.
 
     Returns TraceFileInfo entries sorted by path.
     Raises:

@@ -5,30 +5,27 @@ import typer
 from opentelemetry import trace
 from rich.panel import Panel
 
-from tada.cli.commands.base import AppCommand
-from tada.cli.display.banners import print_command_header
 from tada.cli.display.console import console
 from tada.cli.display.errors import print_typer_error
-from tada.cli.state import TadaCliState, get_cli_state
 from tada.config.settings import settings
-from tada.observability.phoenix_launcher import (
+from tada.runtime.context import RUNS_DIR
+from tada.trace_viewer.phoenix_launcher import (
     PhoenixImportError,
     PhoenixLaunchError,
     launch_phoenix,
 )
-from tada.observability.trace_retrieval import (
+from tada.trace_viewer.trace_retrieval import (
     NoReadableTracesFound,
     NoTraceFilesFound,
     RunsDirectoryNotFound,
     discover_trace_files,
     load_traces,
 )
-from tada.runtime.context import RUNS_DIR
 
 tracer = trace.get_tracer(__name__)
 
 
-def run_view_traces(cli_state: TadaCliState) -> None:
+def run_view_traces() -> None:
     """Launch the local Arize Phoenix trace viewer.
 
     Args:
@@ -106,48 +103,3 @@ def run_view_traces(cli_state: TadaCliState) -> None:
     except PhoenixLaunchError as exc:
         print_typer_error(console, f"Failed to launch trace viewer\n\n{exc}")
         raise typer.Exit(1)
-
-
-def handle_view_traces(
-    ctx: typer.Context,
-) -> None:
-    """Handle execution of the view-traces command from any CLI route.
-
-    This function contains the shared command orchestration used by both direct
-    command invocation and the interactive menu.
-    Args:
-        ctx: Typer context containing the current TaDA CLI state.
-    """
-    cli_state = get_cli_state(ctx)
-    run_view_traces(cli_state=cli_state)
-
-
-def _cmd_view_traces(ctx: typer.Context) -> None:
-    """CLI entrypoint for the ``view-traces`` command.
-
-    Args:
-        ctx: Typer context containing the current TaDA CLI state.
-    """
-    print_command_header(ctx, console, subtitle="Trace viewer", hint=None)
-
-    handle_view_traces(ctx)
-
-
-def register(app: typer.Typer) -> None:
-    """Register the ``view-traces`` command with the Typer app.
-
-    Args:
-        app: Typer application to register the command with.
-    """
-    app.command(
-        name="view-traces",
-        help="View the traces from previous runs in a local Arize Phoenix server.",
-    )(_cmd_view_traces)
-
-
-COMMAND = AppCommand(
-    name="view-traces",
-    interactive_menu_desc="Launch a local Arize Phoenix server to inspect previous runs",
-    register=register,
-    run=handle_view_traces,
-)
