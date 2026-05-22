@@ -171,7 +171,10 @@ class DocumentationProgressDisplay:
                 continue
 
             for issue in section_status.issues:
-                rows.append((section_name, issue))
+                # Only display INFO e.g. skipped empty section & blocking errors to
+                # reduce non-blocking warning noise
+                if issue.severity != IssueSeverity.WARNING:
+                    rows.append((section_name, issue))
 
         # Only want to surface error details for summary if completed
         if store.summary and store.summary.state in SECTION_COMPLETE_STATES:
