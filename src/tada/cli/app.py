@@ -4,8 +4,7 @@ import typer
 from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 from opentelemetry import trace
 
-from tada.cli.commands.base import AppCommand
-from tada.cli.commands.document import COMMAND as DOCUMENT_COMMAND
+from tada.cli.commands import ALL_COMMANDS
 from tada.cli.display.banners import print_command_header
 from tada.cli.display.console import console
 from tada.cli.menu import prompt_for_command
@@ -25,10 +24,6 @@ warnings.filterwarnings(
 )
 
 tracer = trace.get_tracer(__name__)
-
-ALL_COMMANDS: list[AppCommand] = [
-    DOCUMENT_COMMAND,
-]
 
 
 def handle_entrypoint(
