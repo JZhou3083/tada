@@ -2,6 +2,8 @@ import logging
 from dataclasses import dataclass
 from pathlib import Path
 
+from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
+
 from tada.application.graph_runner import run_graph_with_status
 from tada.application.ports import NullStatusSink, StatusSink
 from tada.domain.sections import WorkbookSection
@@ -36,7 +38,12 @@ class DocumentWorkbookResult:
     final_doc: str
 
 
-@observe("app.document")
+@observe(
+    "app.document",
+    attributes={
+        SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN.value,
+    },
+)
 def document_workbook(
     request: DocumentWorkbookRequest,
     *,

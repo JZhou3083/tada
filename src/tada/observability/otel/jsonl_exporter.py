@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import threading
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
@@ -71,88 +72,39 @@ class OpenInferenceJSONLSpanExporter(SpanExporter):
 
     @staticmethod
     def _serialise(span: ReadableSpan) -> dict[str, Any]:
-        ctx = span.context
+        context = span.context
         parent = span.parent
 
         attributes = _json_safe_dict(span.attributes or {})
-        resource = _json_safe_dict(span.resource.attributes or {})
 
-        start_ns = span.start_time
-        end_ns = span.end_time
+        # Prefer OpenInference span kind if present.
+        # Phoenix UI is most useful when this is LLM, CHAIN, TOOL, RETRIEVER, etc.
+        span_kind = (
+            attributes.get("openinference.span.kind")
+            or attributes.get("span.kind")
+            or span.kind.name
+        )
 
-        duration_ms = None
-        if start_ns is not None and end_ns is not None:
-            duration_ms = (end_ns - start_ns) / 1_000_000
-
-        instrumentation_scope = getattr(span, "instrumentation_scope", None)
-
-        return {
+        span_data = {
             "schema": "tada.openinference.span.v1",
-            # Core trace identity
-            "trace_id": format(ctx.trace_id, "032x"),
-            "span_id": format(ctx.span_id, "016x"),
-            "parent_id": format(parent.span_id, "016x") if parent else None,
-            "trace_state": str(ctx.trace_state) if ctx.trace_state else None,
-            # Span basics
             "name": span.name,
-            "kind": span.kind.name if span.kind else None,
-            "status": {
-                "code": span.status.status_code.name,
-                "description": span.status.description,
-            },
-            "start_ns": start_ns,
-            "end_ns": end_ns,
-            "duration_ms": duration_ms,
-            # Debug-friendly OpenInference shortcuts
-            "openinference_span_kind": attributes.get("openinference.span.kind"),
-            "input": attributes.get("input.value"),
-            "input_mime_type": attributes.get("input.mime_type"),
-            "output": attributes.get("output.value"),
-            "output_mime_type": attributes.get("output.mime_type"),
-            "model": attributes.get("llm.model_name"),
-            "token_count": {
-                "prompt": attributes.get("llm.token_count.prompt"),
-                "completion": attributes.get("llm.token_count.completion"),
-                "total": attributes.get("llm.token_count.total"),
-            },
-            # Preserve canonical attributes exactly
-            "attributes": attributes,
-            # Span events
-            "events": [
-                {
-                    "name": event.name,
-                    "timestamp_ns": event.timestamp,
-                    "attributes": _json_safe_dict(event.attributes or {}),
-                }
-                for event in span.events
-            ],
-            # Span links
-            "links": [
-                {
-                    "trace_id": format(link.context.trace_id, "032x"),
-                    "span_id": format(link.context.span_id, "016x"),
-                    "trace_state": str(link.context.trace_state)
-                    if link.context.trace_state
-                    else None,
-                    "attributes": _json_safe_dict(link.attributes or {}),
-                }
-                for link in span.links
-            ],
-            # Resource and instrumentation metadata
-            "resource": resource,
-            "instrumentation_scope": {
-                "name": instrumentation_scope.name if instrumentation_scope else None,
-                "version": instrumentation_scope.version
-                if instrumentation_scope
-                else None,
-            },
-            # Dropped counts can be useful when debugging missing payloads
-            "dropped": {
-                "attributes": span.dropped_attributes,
-                "events": span.dropped_events,
-                "links": span.dropped_links,
-            },
+            "span_kind": span_kind,
+            "parent_id": _span_id_to_hex(parent.span_id) if parent else None,
+            "start_time": _ns_to_datetime(span.start_time),
+            "end_time": _ns_to_datetime(span.end_time),
+            "status_code": span.status.status_code.name,
+            "status_message": span.status.description,
+            "context.span_id": _span_id_to_hex(getattr(context, "span_id")),
+            "context.trace_id": _trace_id_to_hex(getattr(context, "trace_id")),
         }
+        span_data.update(
+            {
+                f"attributes.{key}": _json_safe(value)
+                for key, value in attributes.items()
+            }
+        )
+
+        return span_data
 
 
 def _json_safe_dict(values: Mapping[str, Any]) -> dict[str, Any]:
@@ -173,3 +125,24 @@ def _json_safe(value: Any) -> Any:
         return [_json_safe(v) for v in value]
 
     return str(value)
+
+
+def _ns_to_datetime(value: int | None) -> str | None:
+    if value is None:
+        return None
+    return datetime.fromtimestamp(
+        value / 1_000_000_000,
+        tz=timezone.utc,
+    ).isoformat()
+
+
+def _span_id_to_hex(span_id: int | None) -> str | None:
+    if not span_id:
+        return None
+    return format(span_id, "016x")
+
+
+def _trace_id_to_hex(trace_id: int | None) -> str | None:
+    if not trace_id:
+        return None
+    return format(trace_id, "032x")

@@ -1,6 +1,8 @@
 import logging
 from importlib import resources
 
+from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
+
 from tada.domain.sections import WorkbookSection
 from tada.graph.config import AI_NOTICE
 from tada.graph.events import SectionState
@@ -26,7 +28,12 @@ SECTION_ORDER = [
 ]
 
 
-@observe("langgraph.nodes.summarize_all_sections_documentation")
+@observe(
+    "langgraph.nodes.summarize_all_sections_documentation",
+    attributes={
+        SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN.value,
+    },
+)
 def summarize_all_sections_documentation(state: OverallState) -> OutputState:
     docs_by_section = state["docs_by_section"]
     ordered_section_docs = [

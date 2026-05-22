@@ -4,6 +4,8 @@ from functools import partial
 from importlib import resources
 from typing import Any
 
+from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
+
 from tada.graph.events import (
     IssueSeverity,
     SectionState,
@@ -89,7 +91,12 @@ def _add_feedback_to_prompt(prompt: str, feedback: list[EvalResult]) -> str:
     )
 
 
-@observe("langgraph.nodes.generate_section_documentation")
+@observe(
+    "langgraph.nodes.generate_section_documentation",
+    attributes={
+        SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN.value,
+    },
+)
 def generate_section_documentation(
     state: SectionDocumenterState,
 ) -> dict[str, Any]:
@@ -133,7 +140,12 @@ def generate_section_documentation(
     }
 
 
-@observe("langgraph.nodes.evaluate_section_documentation")
+@observe(
+    "langgraph.nodes.evaluate_section_documentation",
+    attributes={
+        SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN.value,
+    },
+)
 def evaluate_section_documentation(state: SectionDocumenterState) -> dict[str, Any]:
     emit_graph_status(
         name=state["section"].value,
