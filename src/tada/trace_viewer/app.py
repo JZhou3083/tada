@@ -4,7 +4,7 @@ import typer
 from rich.console import Console
 from rich.panel import Panel
 
-from tada.cli.display.errors import print_typer_error
+from tada.cli.display.console import print_typer_error
 from tada.runtime.context import RUNS_DIR
 from tada.settings import settings
 from tada.trace_viewer._optional import OptionalDependencyError
