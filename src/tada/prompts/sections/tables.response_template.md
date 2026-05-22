@@ -63,9 +63,7 @@ Output Requirements
 | name | datatype | description |
 |---|---|---|
 {{#each columns}}
-  {{#if name}}{{name}}{{else}}None{{/if}}
-| {{#if datatype}}{{datatype}}{{else}}None{{/if}} |
-| {{#if description}}{{description}}{{else}}None{{/if}} |
+| {{#if name}}{{name}}{{else}}None{{/if}} | {{#if datatype}}{{datatype}}{{else}}None{{/if}} | {{#if description}}{{description}}{{else}}None{{/if}} |
 {{/each}}
 {{/if}}
 
