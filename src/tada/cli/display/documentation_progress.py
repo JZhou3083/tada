@@ -1,6 +1,9 @@
+from __future__ import annotations
+
 from collections import Counter
 
 from rich.console import Group
+from rich.live import Live
 from rich.progress import (
     BarColumn,
     Progress,
@@ -13,9 +16,11 @@ from rich.spinner import Spinner
 from rich.table import Table
 from rich.text import Text
 
+from tada.application.ports import StatusSink
 from tada.cli.display.theme import ISSUE_SEVERITY_STYLE, SECTION_STATE_STYLE
 from tada.graph.events import (
     SECTION_COMPLETE_STATES,
+    GraphStatusEvent,
     GraphStatusStore,
     IssueSeverity,
     Status,
@@ -223,3 +228,25 @@ class DocumentationProgressDisplay:
             self.section_task_id,
             completed=completed_sections,
         )
+
+
+class RichDocumentationProgressSink(StatusSink):
+    """Applies graph status events and refreshes the Rich live display."""
+
+    def __init__(
+        self,
+        *,
+        display: DocumentationProgressDisplay,
+        store: GraphStatusStore,
+        live: Live,
+    ) -> None:
+        self.display = display
+        self.store = store
+        self.live = live
+
+    def handle(self, event: GraphStatusEvent) -> None:
+        self.store.apply(event)
+        self.refresh()
+
+    def refresh(self) -> None:
+        self.live.update(self.display.render(self.store))

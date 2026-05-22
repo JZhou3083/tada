@@ -6,8 +6,10 @@ from tada.application.document_workbook import (
     document_workbook,
 )
 from tada.cli.display.console import console
-from tada.cli.display.documentation_progress import DocumentationProgressDisplay
-from tada.cli.display.documentation_progress_sink import RichDocumentationProgressSink
+from tada.cli.display.documentation_progress import (
+    DocumentationProgressDisplay,
+    RichDocumentationProgressSink,
+)
 from tada.graph.events import GraphStatusStore
 
 
