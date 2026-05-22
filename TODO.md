@@ -1,0 +1,2 @@
+- [ ] Strip developer notes ourselves before handing to the LLM
+- [ ] Add option to pass documentation level into the document workflow

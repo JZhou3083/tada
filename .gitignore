@@ -8,3 +8,20 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Dev environment variables
+.env
+
+# --- Project specific ---
+# Input
+workbooks/
+
+# Output
+output/*.md
+
+# Reports
+reports/*.json
+reports/*.csv
+
+
+

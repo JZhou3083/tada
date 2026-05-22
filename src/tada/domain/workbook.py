@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-from enum import Enum
 from pathlib import Path
 from typing import Any, Self
 
@@ -18,20 +17,6 @@ from tada.tableau.extractors import (
 )
 from tada.tableau.loader import load_workbook_xml
 from tada.tableau.xml.prune import drop_xpaths
-
-
-class WorkbookSection(str, Enum):
-    DATASOURCES = "datasources"
-    CALCULATIONS = "calculations"
-    DASHBOARDS = "dashboards"
-    WORKSHEETS = "worksheets"
-    ACTIONS = "actions"
-    PARAMETERS = "parameters"
-    TABLES = "tables"
-
-    def fetch_from(self, workbook: Workbook) -> Any:
-        """Return the corresponding attribute from a Workbook object."""
-        return getattr(workbook, self.value)
 
 
 class Workbook(BaseModel):
@@ -63,7 +48,6 @@ class Workbook(BaseModel):
             ],
         )
 
-        # TODO: original code writes the clean XML at this point to a fresh file, needed?
         # TODO: next perform the PII scan
 
         datasources = extract_datasources(root)
