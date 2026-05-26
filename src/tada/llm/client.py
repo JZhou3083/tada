@@ -2,9 +2,15 @@ from functools import lru_cache
 from typing import Sequence, TypeVar
 
 from google.genai import Client, types
+from google.genai.errors import APIError
 from pydantic import BaseModel, ValidationError
+from tenacity import (
+    retry,
+    retry_if_exception,
+    stop_after_attempt,
+    wait_exponential_jitter,
+)
 
-# TODO: add 429 retries to the gateway
 # TODO: add logging to the gateway
 
 
@@ -150,6 +156,25 @@ def _resolve_structured_config(
     )
 
 
+def _is_retryable_genai_error(exc: BaseException) -> bool:
+    """Return whether a GenAI exception should be retried.
+
+    Retries are limited to Google GenAI API errors with status code `429`,
+    which indicates `RESOURCE_EXHAUSTED` / rate limiting.
+
+    Args:
+        exc: Exception raised by the Google GenAI client.
+
+    Returns:
+        `True` if the exception is a retryable 429 API error; otherwise `False`.
+    """
+    if not isinstance(exc, APIError):
+        return False
+
+    code = getattr(exc, "code", None)
+    return code == 429
+
+
 T = TypeVar("T", bound=BaseModel)
 
 
@@ -162,6 +187,45 @@ class VertexAIGateway:
     def __init__(self, client: Client):
         self.client = client
 
+    @retry(
+        retry=retry_if_exception(_is_retryable_genai_error),
+        wait=wait_exponential_jitter(initial=1, max=10, jitter=0.25),
+        stop=stop_after_attempt(4),
+        #     # before_sleep=log_retry, # TBC
+        reraise=True,
+    )
+    def _generate_content_with_retry(
+        self,
+        *,
+        model: str,
+        contents: types.ContentListUnionDict,
+        config: types.GenerateContentConfigOrDict | None,
+    ) -> types.GenerateContentResponse:
+        """Generate content with retry handling for rate limit errors.
+
+        Calls the Google GenAI `generate_content` API and retries only when the
+        client raises a retryable `429 RESOURCE_EXHAUSTED` error. Retries use
+        exponential backoff with jitter and re-raise the final exception if all
+        attempts fail.
+
+        Args:
+            model: Model name or ID to use.
+            contents: Normalised prompt content suitable for Google GenAI.
+            config: Optional Google GenAI generation config.
+
+        Returns:
+            The raw GenAI response from `client.models.generate_content`.
+
+        Raises:
+            APIError: If the GenAI API call fails. Retryable 429 errors are
+                retried before the final exception is raised.
+        """
+        return self.client.models.generate_content(
+            model=model,
+            contents=contents,
+            config=config,
+        )
+
     def generate_text(
         self,
         *,
@@ -170,6 +234,9 @@ class VertexAIGateway:
         config: types.GenerateContentConfigOrDict | None = None,
     ) -> tuple[types.GenerateContentResponse, str]:
         """Generate a plain text response from a model.
+
+        Retries are applied automatically for 429 RESOURCE_EXHAUSTED errors using
+        exponential backoff with jitter.
 
         Args:
             model: Model name or ID to use.
@@ -183,7 +250,7 @@ class VertexAIGateway:
             ValueError: If the model returns no text.
             TypeError: If `contents` is not in a supported format.
         """
-        response = self.client.models.generate_content(
+        response = self._generate_content_with_retry(
             model=model,
             contents=_normalize_contents(contents),
             config=config,
@@ -209,6 +276,9 @@ class VertexAIGateway:
 
         The model response is requested as JSON using the schema generated from
         `schema_model`, then validated into an instance of that model.
+
+        Retries are applied automatically for 429 RESOURCE_EXHAUSTED errors using
+        exponential backoff with jitter.
 
         Args:
             model: Model name or ID to use.
