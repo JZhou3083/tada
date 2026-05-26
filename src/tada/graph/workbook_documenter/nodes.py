@@ -62,13 +62,9 @@ def summarize_all_sections_documentation(state: OverallState) -> OutputState:
 
         client_wrapper = get_vertexai_gateway()
 
-        contents = client_wrapper.contents_from_text_parts(
-            [summariser_prompt, compiled_doc]
-        )
-
         _, documentation_summary = client_wrapper.generate_text(
             model="gemini-3-flash-preview",
-            contents=contents,
+            contents=[summariser_prompt, compiled_doc],
             config=build_base_generation_config(),
         )
 

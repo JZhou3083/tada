@@ -61,10 +61,10 @@ def _add_feedback_to_prompt(prompt: str, feedback: list[EvalResult]) -> str:
             prompt
             + f"""### CRITICAL FEEDBACK (MUST FIX):
             The Quality Assurance team flagged the following errors in your previous attempt.
+            (e.g., "You missed the calculated field 'Profit Ratio'. You hallucinated a 'Left Join'.")
             You must ensure these are corrected in this new version:
             ---------------------------------------------------------
             {feedback_history[0]}
-            (e.g., "You missed the calculated field 'Profit Ratio'. You hallucinated a 'Left Join'.")
             ---------------------------------------------------------
         """
         )
@@ -122,13 +122,9 @@ def generate_section_documentation(
         encoding="utf-8"
     )
 
-    contents = client_wrapper.contents_from_text_parts(
-        [full_prompt, state["response_template"], json.dumps(state["data"])]
-    )
-
     _, section_docs = client_wrapper.generate_text(
         model="gemini-3-flash-preview",
-        contents=contents,
+        contents=[full_prompt, state["response_template"], json.dumps(state["data"])],
         config=build_base_generation_config(
             system_instruction=system_instruction,
         ),
@@ -168,18 +164,14 @@ def evaluate_section_documentation(state: SectionDocumenterState) -> dict[str, A
     ).read_text(encoding="utf-8")
     client_wrapper = get_vertexai_gateway()
 
-    contents = client_wrapper.contents_from_text_parts(
-        [
+    _, evaluation = client_wrapper.generate_structured_response(
+        model="gemini-3-flash-preview",
+        contents=[
             evaluator_prompt,
             json.dumps(state["data"]),
             state["generated_section_doc"],
             state["response_template"],
-        ]
-    )
-
-    _, evaluation = client_wrapper.generate_structured_response(
-        model="gemini-3-flash-preview",
-        contents=contents,
+        ],
         schema_model=EvalResult,
         config=build_base_generation_config(),
     )
