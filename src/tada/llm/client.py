@@ -1,17 +1,62 @@
+import time
+import uuid
 from functools import lru_cache
 from typing import Sequence, TypeVar
 
+import structlog
 from google.genai import Client, types
 from google.genai.errors import APIError
 from pydantic import BaseModel, ValidationError
 from tenacity import (
+    RetryCallState,
     retry,
     retry_if_exception,
     stop_after_attempt,
     wait_exponential_jitter,
 )
 
-# TODO: add logging to the gateway
+logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
+
+# ------------------------
+# Tenacity retries
+# ------------------------
+
+
+def _log_retry(retry_state: RetryCallState) -> None:
+    """Structured log emitted by tenacity before each sleep between retries."""
+    # .outcome & .next_action are guaranteed at call time, but we guard in-line with type-checkers.
+    exc = retry_state.outcome.exception() if retry_state.outcome is not None else None
+    wait = (
+        round(retry_state.next_action.sleep, 2)
+        if retry_state.next_action is not None
+        else None
+    )
+    logger.warning(
+        "genai.retry",
+        attempt=retry_state.attempt_number,
+        wait_seconds=wait,
+        total_idle_seconds=round(retry_state.idle_for, 2),
+        error_type=type(exc).__name__,
+        error=str(exc),
+    )
+
+
+def _is_retryable_genai_error(exc: BaseException) -> bool:
+    """Return whether a GenAI exception should be retried.
+
+    Retries are limited to Google GenAI API errors with status code `429`, which
+    indicates `RESOURCE_EXHAUSTED` / rate limiting.
+    """
+    if not isinstance(exc, APIError):
+        return False
+
+    code = getattr(exc, "code", None)
+    return code == 429
+
+
+# ------------------------
+# Contents handling
+# ------------------------
 
 
 def _contents_from_text_parts(text_parts: Sequence[str]) -> types.Content:
@@ -87,6 +132,11 @@ def _normalize_contents(
     return contents
 
 
+# ------------------------
+# Config handling
+# ------------------------
+
+
 def _coerce_config(
     config: types.GenerateContentConfigOrDict,
 ) -> types.GenerateContentConfig:
@@ -156,28 +206,14 @@ def _resolve_structured_config(
     )
 
 
-def _is_retryable_genai_error(exc: BaseException) -> bool:
-    """Return whether a GenAI exception should be retried.
-
-    Retries are limited to Google GenAI API errors with status code `429`,
-    which indicates `RESOURCE_EXHAUSTED` / rate limiting.
-
-    Args:
-        exc: Exception raised by the Google GenAI client.
-
-    Returns:
-        `True` if the exception is a retryable 429 API error; otherwise `False`.
-    """
-    if not isinstance(exc, APIError):
-        return False
-
-    code = getattr(exc, "code", None)
-    return code == 429
-
+# ------------------------
+# Gateway
+# ------------------------
 
 T = TypeVar("T", bound=BaseModel)
 
 
+# TODO: can cost reporting be done here - thus saving the need for logic in the graph and no need to return the full response obj
 class VertexAIGateway:
     """Small gateway around the Google GenAI client.
 
@@ -191,7 +227,7 @@ class VertexAIGateway:
         retry=retry_if_exception(_is_retryable_genai_error),
         wait=wait_exponential_jitter(initial=1, max=10, jitter=0.25),
         stop=stop_after_attempt(4),
-        #     # before_sleep=log_retry, # TBC
+        before_sleep=_log_retry,
         reraise=True,
     )
     def _generate_content_with_retry(
@@ -250,17 +286,57 @@ class VertexAIGateway:
             ValueError: If the model returns no text.
             TypeError: If `contents` is not in a supported format.
         """
-        response = self._generate_content_with_retry(
+        # Bind a request-scoped correlation ID so every log line within this call
+        # (including any retry logs) carries the same trace token.
+        request_id = str(uuid.uuid4())
+        structlog.contextvars.bind_contextvars(
+            request_id=request_id,
             model=model,
-            contents=_normalize_contents(contents),
-            config=config,
         )
 
-        if response.text is None:
-            raise ValueError(
-                "Model returned no text response. "
-                "Check whether the response was blocked, empty, or returned only non-text parts."
+        log = logger.bind(method="generate_text")
+        log.info("genai.request.start")
+
+        normalised = _normalize_contents(contents)
+        t0 = time.perf_counter()
+
+        try:
+            response = self._generate_content_with_retry(
+                model=model,
+                contents=normalised,
+                config=config,
             )
+
+            elapsed = round(time.perf_counter() - t0, 3)
+
+            if response.text is None:
+                log.warning("genai.request.no_text", elapsed_seconds=elapsed)
+                raise ValueError(
+                    "Model returned no text response. "
+                    "Check whether the response was blocked, empty, or returned only non-text parts."
+                )
+
+            # usage_metadata is None if the response doesn't include token counts
+            usage = response.usage_metadata
+            log.info(
+                "genai.request.complete",
+                elapsed_seconds=elapsed,
+                input_tokens=getattr(usage, "prompt_token_count", None),
+                output_tokens=getattr(usage, "candidates_token_count", None),
+            )
+
+        except APIError as exc:
+            log.error(
+                "genai.request.error",
+                error_type=type(exc).__name__,
+                error=str(exc),
+                status_code=getattr(exc, "code", None),
+                elapsed_seconds=round(time.perf_counter() - t0, 3),
+            )
+            raise
+
+        finally:
+            structlog.contextvars.unbind_contextvars("request_id", "model")
 
         return response, response.text
 
@@ -297,6 +373,9 @@ class VertexAIGateway:
             ValidationError: If `config` is invalid.
         """
         _validate_schema_model(schema_model)
+        log = logger.bind(
+            method="generate_structured_response", schema=schema_model.__name__
+        )
 
         resolved_config = _resolve_structured_config(
             schema_model=schema_model,
@@ -312,17 +391,28 @@ class VertexAIGateway:
         try:
             response_obj = schema_model.model_validate_json(response_text)
         except ValidationError as exc:
+            log.error(
+                "genai.structured.validation_error",
+                error=str(exc),
+                response_preview=response_text[:250],
+            )
             raise ValueError(
                 "Model returned JSON that does not match the expected schema "
                 f"{schema_model.__name__}. Validation error: {exc}"
             ) from exc
         except ValueError as exc:
+            log.error(
+                "genai.structured.invalid_json",
+                error=str(exc),
+                response_preview=response_text[:250],
+            )
             raise ValueError(
                 "Model returned invalid JSON for expected schema "
                 f"{schema_model.__name__}. Response text starts with: "
                 f"{response_text[:250]!r}"
             ) from exc
 
+        log.info("genai.structured.parsed", schema=schema_model.__name__)
         return response, response_obj
 
 
