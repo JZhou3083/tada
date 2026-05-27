@@ -1,11 +1,12 @@
 import time
 import uuid
 from functools import lru_cache
-from typing import Sequence, TypeVar
+from typing import Any, Sequence, TypeVar
 
 import structlog
 from google.genai import Client, types
 from google.genai.errors import APIError
+from opentelemetry import trace
 from pydantic import BaseModel, ValidationError
 from tenacity import (
     RetryCallState,
@@ -15,7 +16,63 @@ from tenacity import (
     wait_exponential_jitter,
 )
 
+from tada.observability.cost.calculator import safe_calculate_cost
+from tada.observability.cost.types import CostSuccess
+
 logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
+
+
+def cost_to_observability_fields(result: CostSuccess) -> dict[str, Any]:
+    fields: dict[str, Any] = {
+        "llm.model_name": result.model_name,
+        "llm.cost.total_usd": str(result.total_cost_usd),
+    }
+
+    for component in result.breakdown:
+        fields[f"llm.token_count.{component.name}"] = component.tokens
+        fields[f"llm.cost.{component.name}_usd"] = str(component.cost_usd)
+
+    return fields
+
+
+def _log_llm_usage(
+    model_name: str,
+    usage_metadata: types.GenerateContentResponseUsageMetadata,
+    elapsed_seconds: float,
+) -> None:
+    fields: dict[str, Any] = {
+        "llm.model": model_name,
+        "llm.response.elapsed_seconds": elapsed_seconds,
+    }
+
+    cost = safe_calculate_cost(
+        model_name=model_name,
+        usage={
+            "prompt_token_count": usage_metadata.prompt_token_count,
+            "cached_content_token_count": usage_metadata.cached_content_token_count,
+            "thoughts_token_count": usage_metadata.thoughts_token_count,
+            "candidates_token_count": usage_metadata.candidates_token_count,
+        },
+    )
+
+    if isinstance(cost, CostSuccess):
+        fields = {
+            **cost_to_observability_fields(cost),
+        }
+    else:
+        fields = {
+            "llm.cost.error.type": cost.error_type,
+            "llm.cost.error.message": cost.error_message,
+        }
+
+    span = trace.get_current_span()
+    if span and span.is_recording():
+        for key, value in fields.items():
+            if value is not None:
+                span.set_attribute(key, value)
+
+    logger.info("genai.request.usage", **fields)
+
 
 # ------------------------
 # Tenacity retries
@@ -262,6 +319,7 @@ class VertexAIGateway:
             config=config,
         )
 
+    # TODO: should we implement a model fallback like previous versions?
     def generate_text(
         self,
         *,
@@ -308,21 +366,34 @@ class VertexAIGateway:
             )
 
             elapsed = round(time.perf_counter() - t0, 3)
+            # usage_metadata is None if the response doesn't include token counts
+            usage = response.usage_metadata
+
+            usage_fields = {
+                "prompt_token_count": getattr(usage, "prompt_token_count", None),
+                "candidates_token_count": getattr(
+                    usage, "candidates_token_count", None
+                ),
+                "cached_content_token_count": getattr(
+                    usage, "cached_content_token_count", None
+                ),
+                "thoughts_token_count": getattr(usage, "thoughts_token_count", None),
+                "total_token_count": getattr(usage, "total_token_count", None),
+            }
 
             if response.text is None:
-                log.warning("genai.request.no_text", elapsed_seconds=elapsed)
+                log.warning(
+                    "genai.request.no_text", elapsed_seconds=elapsed, **usage_fields
+                )
                 raise ValueError(
                     "Model returned no text response. "
                     "Check whether the response was blocked, empty, or returned only non-text parts."
                 )
 
-            # usage_metadata is None if the response doesn't include token counts
-            usage = response.usage_metadata
             log.info(
                 "genai.request.complete",
                 elapsed_seconds=elapsed,
-                input_tokens=getattr(usage, "prompt_token_count", None),
-                output_tokens=getattr(usage, "candidates_token_count", None),
+                **usage_fields,
             )
 
         except APIError as exc:
