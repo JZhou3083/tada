@@ -8,10 +8,6 @@ class PricingNotFoundError(CostError):
     error_type = "pricing_not_found"
 
 
-class UsageMissingError(CostError):
-    error_type = "usage_missing"
-
-
 class InvalidUsageError(CostError):
     error_type = "invalid_usage"
 

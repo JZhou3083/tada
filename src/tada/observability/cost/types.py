@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Literal, TypedDict
 
@@ -27,9 +27,9 @@ class CostComponent:
 class CostSuccess:
     """Successful cost calculation result."""
 
-    ok: Literal[True]
+    ok: Literal[True] = field(default=True, init=False)
     model_name: str
-    breakdown: list[CostComponent]
+    breakdown: tuple[CostComponent, ...]
     total_cost_usd: Decimal
 
 
@@ -37,10 +37,8 @@ class CostSuccess:
 class CostFailure:
     """Cost calculation result when cost cannot be calculated."""
 
-    ok: Literal[False]
+    ok: Literal[False] = field(default=False, init=False)
     model_name: str
-    breakdown: tuple[CostComponent, ...]
-    total_cost_usd: None
     error_type: str
     error_message: str
 

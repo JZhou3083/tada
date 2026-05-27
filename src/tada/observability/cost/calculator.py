@@ -3,11 +3,12 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Callable
 
+import structlog
+
 from tada.observability.cost.errors import (
     CostError,
     InvalidUsageError,
     PricingNotFoundError,
-    UsageMissingError,
 )
 from tada.observability.cost.pricing import get_model_pricing, load_pricing_config
 from tada.observability.cost.schemas import ModelPricing, PricingConfig
@@ -18,6 +19,8 @@ from tada.observability.cost.types import (
     CostSuccess,
     LLMTokenUsage,
 )
+
+logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
 TokenCounter = Callable[[LLMTokenUsage], int]
 RateGetter = Callable[[ModelPricing], Decimal | None]
@@ -102,7 +105,7 @@ def calculate_cost(
         candidates_token_count: Output/completion tokens.
 
     Returns:
-        A dictionary containing the model name, per-component cost breakdown,
+        A CostSuccess dataclass containing the model name, per-component cost breakdown,
         and total estimated cost in USD.
 
     Notes:
@@ -110,8 +113,11 @@ def calculate_cost(
         - Missing usage values are treated as zero.
         - Input cost excludes cached input tokens.
     """
-    if usage is None:
-        raise UsageMissingError("Usage data is missing or empty")
+    logger.debug(
+        "cost.calculation.started",
+        model_name=model_name,
+        usage_keys=list(usage.keys()) if usage else [],
+    )
 
     if not pricing_config:
         pricing_config = load_pricing_config()
@@ -119,13 +125,21 @@ def calculate_cost(
     model_pricing = get_model_pricing(model_name, pricing_config.pricing)
 
     if model_pricing is None:
-        raise PricingNotFoundError(model_name)
+        raise PricingNotFoundError(f"No pricing found for model: {model_name!r}")
 
     # Guard against invalid token usage figures - cached input cannot exceed full input
     prompt_tokens = _get_token_count(usage, "prompt_token_count")
     cached_tokens = _get_token_count(usage, "cached_content_token_count")
 
     if cached_tokens > prompt_tokens:
+        logger.warning(
+            "cost.usage.invalid",
+            reason="cached_tokens_exceed_prompt_tokens",
+            model_name=model_name,
+            prompt_token_count=prompt_tokens,
+            cached_content_token_count=cached_tokens,
+        )
+
         raise InvalidUsageError(
             "cached_content_token_count cannot exceed prompt_token_count"
         )
@@ -140,13 +154,21 @@ def calculate_cost(
             CostComponent(name=component_name, tokens=tokens, cost_usd=cost_usd)
         )
 
-    return CostSuccess(
-        ok=True,
+    total_cost_usd = sum((c.cost_usd for c in breakdown), start=Decimal(0))
+
+    logger.info(
+        "cost.calculation.completed",
         model_name=model_name,
-        breakdown=breakdown,
-        total_cost_usd=sum(
-            [component.cost_usd for component in breakdown], start=Decimal(0)
+        total_cost_usd=str(
+            total_cost_usd  # Convert Decimal to string to avoid JSON serialization issues
         ),
+        component_count=len(breakdown),
+    )
+
+    return CostSuccess(
+        model_name=model_name,
+        breakdown=tuple(breakdown),
+        total_cost_usd=total_cost_usd,
     )
 
 
@@ -159,20 +181,28 @@ def safe_calculate_cost(
     try:
         return calculate_cost(model_name, usage, pricing_config=pricing_config)
     except CostError as exc:
-        return CostFailure(
-            ok=False,
+        logger.warning(
+            "cost.error.handled",
             model_name=model_name,
-            breakdown=tuple(),
-            total_cost_usd=None,
+            error_type=exc.error_type,
+            error_message=str(exc),
+            exc_info=True,
+        )
+
+        return CostFailure(
+            model_name=model_name,
             error_type=exc.error_type,
             error_message=str(exc),
         )
     except Exception as exc:
-        return CostFailure(
-            ok=False,
+        # Intentionally broad - cost calculation must never crash the calling process
+        logger.exception(
+            "cost.error.unexpected",
             model_name=model_name,
-            breakdown=tuple(),
-            total_cost_usd=None,
+        )
+
+        return CostFailure(
+            model_name=model_name,
             error_type="calculation_error",  # Any unexpected errors are given a generic type
             error_message=str(exc),
         )

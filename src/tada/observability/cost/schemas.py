@@ -41,6 +41,8 @@ class PricingConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    # Static currency & unit are included to ensure that all configs include this information
+    # TODO: should the model pricing include this in variable names itself?
     currency: Literal["USD"]
     unit: Literal["tokens_per_million"]
     pricing: dict[ModelName, ModelPricing]
