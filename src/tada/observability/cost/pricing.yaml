@@ -1,40 +1,40 @@
 currency: USD
 unit: tokens_per_million
 
+# Decimal values are written as strings to avoid precision errors resulting from pyyaml auto-conversion to float
 pricing:
-
   gemini-2.5-flash-lite:
-    input_cost_per_1m: 0.1
-    output_cost_per_1m: 0.4
-    cached_input_cost_per_1m: 0.01
-    thoughts_cost_per_1m: 0.4
+    input_cost_per_1m: "0.1"
+    output_cost_per_1m: "0.4"
+    cached_input_cost_per_1m: "0.01"
+    thoughts_cost_per_1m: "0.4"
     effective_from: "2026-04-01"
     source: "https://ai.google.dev/gemini-api/docs/pricing"
 
   gemini-2.5-flash:
-    input_cost_per_1m: 0.3
-    output_cost_per_1m: 2.5
-    cached_input_cost_per_1m: 0.03
-    thoughts_cost_per_1m: 2.5
+    input_cost_per_1m: "0.3"
+    output_cost_per_1m: "2.5"
+    cached_input_cost_per_1m: "0.03"
+    thoughts_cost_per_1m: "2.5"
     effective_from: "2026-04-01"
     source: "https://ai.google.dev/gemini-api/docs/pricing"
 
   gemini-2.5-pro:
-    input_cost_per_1m: 1.25
-    output_cost_per_1m: 10.0
-    cached_input_cost_per_1m: 0.125
-    thoughts_cost_per_1m: 10.0
+    input_cost_per_1m: "1.25"
+    output_cost_per_1m: "10.0"
+    cached_input_cost_per_1m: "0.125"
+    thoughts_cost_per_1m: "10.0"
     max_prompt_tokens: 200000
-    cache_storage_cost_per_1m_tokens_per_hr: 4.5
+    cache_storage_cost_per_1m_tokens_per_hr: "4.5"
     effective_from: "2026-04-01"
     source: "https://ai.google.dev/gemini-api/docs/pricing"
 
   gemini-3-flash-preview:
-    input_cost_per_1m: 0.50
-    output_cost_per_1m: 3.0
-    cached_input_cost_per_1m: 0.05
-    thoughts_cost_per_1m: 3.0
+    input_cost_per_1m: "0.50"
+    output_cost_per_1m: "3.0"
+    cached_input_cost_per_1m: "0.05"
+    thoughts_cost_per_1m: "3.0"
     max_prompt_tokens: 200000
-    cache_storage_cost_per_1m_tokens_per_hr: 1.0
+    cache_storage_cost_per_1m_tokens_per_hr: "1.0"
     effective_from: "2026-04-01"
     source: "https://ai.google.dev/gemini-api/docs/pricing"

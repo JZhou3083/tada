@@ -1,9 +1,11 @@
 from __future__ import annotations
 
-from typing import TypedDict
+from dataclasses import dataclass
+from decimal import Decimal
+from typing import Literal, TypedDict
 
 
-class Usage(TypedDict, total=False):
+class LLMTokenUsage(TypedDict, total=False):
     """Token usage metrics returned by the model provider."""
 
     prompt_token_count: int | None
@@ -12,27 +14,35 @@ class Usage(TypedDict, total=False):
     candidates_token_count: int | None
 
 
-class CostComponent(TypedDict):
+@dataclass(frozen=True, slots=True)
+class CostComponent:
     """Cost breakdown for a single token component."""
 
+    name: str
     tokens: int
-    cost: float
+    cost_usd: Decimal
 
 
-class CostSuccessResult(TypedDict):
+@dataclass(frozen=True, slots=True)
+class CostSuccess:
     """Successful cost calculation result."""
 
-    model: str
-    breakdown: dict[str, CostComponent]
-    total_cost_usd: float
+    ok: Literal[True]
+    model_name: str
+    breakdown: list[CostComponent]
+    total_cost_usd: Decimal
 
 
-class CostErrorResult(TypedDict):
-    """Cost calculation result when pricing cannot be resolved."""
+@dataclass(frozen=True, slots=True)
+class CostFailure:
+    """Cost calculation result when cost cannot be calculated."""
 
-    model: str
-    error: str
-    total_cost_usd: float
+    ok: Literal[False]
+    model_name: str
+    breakdown: tuple[CostComponent, ...]
+    total_cost_usd: None
+    error_type: str
+    error_message: str
 
 
-CostResult = CostSuccessResult | CostErrorResult
+CostResult = CostSuccess | CostFailure

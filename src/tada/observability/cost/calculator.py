@@ -3,17 +3,29 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Callable
 
+from tada.observability.cost.errors import (
+    CostError,
+    InvalidUsageError,
+    PricingNotFoundError,
+    UsageMissingError,
+)
 from tada.observability.cost.pricing import get_model_pricing, load_pricing_config
-from tada.observability.cost.schemas import ModelPricing
-from tada.observability.cost.types import CostComponent, CostResult, Usage
+from tada.observability.cost.schemas import ModelPricing, PricingConfig
+from tada.observability.cost.types import (
+    CostComponent,
+    CostFailure,
+    CostResult,
+    CostSuccess,
+    LLMTokenUsage,
+)
 
-TokenCounter = Callable[[Usage], int]
+TokenCounter = Callable[[LLMTokenUsage], int]
 RateGetter = Callable[[ModelPricing], Decimal | None]
 
 COST_COMPONENTS: tuple[tuple[str, TokenCounter, RateGetter], ...] = (
     (
         "cached_input",
-        lambda usage: get_token_count(usage, "cached_content_token_count"),
+        lambda usage: _get_token_count(usage, "cached_content_token_count"),
         lambda pricing: (
             pricing.cached_input_cost_per_1m or pricing.input_cost_per_1m
         ),  # if cached input cost is not provided, fall back to regular input cost
@@ -21,26 +33,26 @@ COST_COMPONENTS: tuple[tuple[str, TokenCounter, RateGetter], ...] = (
     (
         "input",
         lambda usage: max(
-            get_token_count(usage, "prompt_token_count")
-            - get_token_count(usage, "cached_content_token_count"),
+            _get_token_count(usage, "prompt_token_count")
+            - _get_token_count(usage, "cached_content_token_count"),
             0,
         ),
         lambda pricing: pricing.input_cost_per_1m,
     ),
     (
         "thoughts",
-        lambda usage: get_token_count(usage, "thoughts_token_count"),
+        lambda usage: _get_token_count(usage, "thoughts_token_count"),
         lambda pricing: pricing.thoughts_cost_per_1m,
     ),
     (
         "output",
-        lambda usage: get_token_count(usage, "candidates_token_count"),
+        lambda usage: _get_token_count(usage, "candidates_token_count"),
         lambda pricing: pricing.output_cost_per_1m,
     ),
 )
 
 
-def get_token_count(usage: Usage, key: str) -> int:
+def _get_token_count(usage: LLMTokenUsage, key: str) -> int:
     """Return a non-negative token count from a usage payload."""
     value = usage.get(key, 0)
 
@@ -49,15 +61,15 @@ def get_token_count(usage: Usage, key: str) -> int:
 
     # Since bool is a subclass of int specifically catch edge-case value: bool
     if isinstance(value, bool) or not isinstance(value, int):
-        raise TypeError(f"{key} must be an int, got {type(value).__name__}")
+        raise InvalidUsageError(f"{key} must be an int, got {type(value).__name__}")
 
     if value < 0:
-        raise ValueError(f"{key} must be non-negative")
+        raise InvalidUsageError(f"{key} must be non-negative")
 
     return value
 
 
-def calculate_component_cost(
+def _calculate_component_cost(
     tokens: int,
     rate_per_1m: Decimal | None,
 ) -> Decimal:
@@ -68,7 +80,12 @@ def calculate_component_cost(
     return Decimal(tokens) * rate_per_1m / Decimal("1000000")
 
 
-def calculate_cost(model_name: str, usage: Usage) -> CostResult:
+def calculate_cost(
+    model_name: str,
+    usage: LLMTokenUsage,
+    *,
+    pricing_config: PricingConfig | None = None,
+) -> CostSuccess:
     """
     Calculate the estimated USD cost for a model usage record.
 
@@ -88,49 +105,74 @@ def calculate_cost(model_name: str, usage: Usage) -> CostResult:
         A dictionary containing the model name, per-component cost breakdown,
         and total estimated cost in USD.
 
-        If no pricing is found, the dictionary includes an error message and
-        a zero total cost.
-
     Notes:
         - Costs are returned as floats rounded to 6 decimal places.
         - Missing usage values are treated as zero.
         - Input cost excludes cached input tokens.
-        - Components with missing pricing rates are costed as zero.
     """
-    pricing_config = load_pricing_config()
+    if usage is None:
+        raise UsageMissingError("Usage data is missing or empty")
+
+    if not pricing_config:
+        pricing_config = load_pricing_config()
+
     model_pricing = get_model_pricing(model_name, pricing_config.pricing)
 
     if model_pricing is None:
-        return {
-            "model": model_name,
-            "error": f"No pricing for {model_name}",
-            "total_cost_usd": 0.0,
-        }
+        raise PricingNotFoundError(model_name)
 
     # Guard against invalid token usage figures - cached input cannot exceed full input
-    prompt_tokens = get_token_count(usage, "prompt_token_count")
-    cached_tokens = get_token_count(usage, "cached_content_token_count")
+    prompt_tokens = _get_token_count(usage, "prompt_token_count")
+    cached_tokens = _get_token_count(usage, "cached_content_token_count")
 
     if cached_tokens > prompt_tokens:
-        raise ValueError("cached_content_token_count cannot exceed prompt_token_count")
+        raise InvalidUsageError(
+            "cached_content_token_count cannot exceed prompt_token_count"
+        )
 
-    breakdown: dict[str, CostComponent] = {}
-    total_cost = Decimal("0")
-
+    breakdown: list[CostComponent] = []
     for component_name, token_counter, rate_getter in COST_COMPONENTS:
         tokens = token_counter(usage)
         rate = rate_getter(model_pricing)
-        cost = calculate_component_cost(tokens, rate)
+        cost_usd = _calculate_component_cost(tokens, rate)
 
-        breakdown[component_name] = {
-            "tokens": tokens,
-            "cost": float(round(cost, 6)),
-        }
+        breakdown.append(
+            CostComponent(name=component_name, tokens=tokens, cost_usd=cost_usd)
+        )
 
-        total_cost += cost
+    return CostSuccess(
+        ok=True,
+        model_name=model_name,
+        breakdown=breakdown,
+        total_cost_usd=sum(
+            [component.cost_usd for component in breakdown], start=Decimal(0)
+        ),
+    )
 
-    return {
-        "model": model_name,
-        "breakdown": breakdown,
-        "total_cost_usd": float(round(total_cost, 6)),
-    }
+
+def safe_calculate_cost(
+    model_name: str,
+    usage: LLMTokenUsage,
+    *,
+    pricing_config: PricingConfig | None = None,
+) -> CostResult:
+    try:
+        return calculate_cost(model_name, usage, pricing_config=pricing_config)
+    except CostError as exc:
+        return CostFailure(
+            ok=False,
+            model_name=model_name,
+            breakdown=tuple(),
+            total_cost_usd=None,
+            error_type=exc.error_type,
+            error_message=str(exc),
+        )
+    except Exception as exc:
+        return CostFailure(
+            ok=False,
+            model_name=model_name,
+            breakdown=tuple(),
+            total_cost_usd=None,
+            error_type="calculation_error",  # Any unexpected errors are given a generic type
+            error_message=str(exc),
+        )
