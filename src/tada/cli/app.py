@@ -13,7 +13,7 @@ from tada.cli.state import TadaCliOptions, TadaCliState
 from tada.observability.logging import configure_logging
 from tada.runtime.context import TadaRunContext
 from tada.runtime.lifecycle import AppRuntime
-from tada.settings import settings
+from tada.settings import get_settings
 
 # Silence this specific auth-warning which Google SDK prints directly to console
 warnings.filterwarnings(
@@ -154,7 +154,9 @@ def main():
     builds the CLI application, executes it inside the TaDA runtime lifecycle,
     and records whether the run completed or failed.
     """
-    run_context = TadaRunContext.create(state_dir=settings.state_dir)
+    app_settings = get_settings()
+
+    run_context = TadaRunContext.create(state_dir=app_settings.state_dir)
 
     app = create_tada_app(run_context=run_context)
 
