@@ -115,10 +115,6 @@ class TestCalculateCostReturnType:
         result = calculate_cost("test-model-full", {}, pricing_config=pricing_config)
         assert isinstance(result, CostSuccess)
 
-    def test_ok_is_true(self, pricing_config):
-        result = calculate_cost("test-model-full", {}, pricing_config=pricing_config)
-        assert result.ok is True
-
     def test_model_name_preserved(self, pricing_config):
         result = calculate_cost("test-model-full", {}, pricing_config=pricing_config)
         assert result.model_name == "test-model-full"
@@ -318,7 +314,6 @@ class TestSafeCalculateCost:
     def test_returns_cost_failure_for_unknown_model(self, pricing_config):
         result = safe_calculate_cost("unknown-model", {}, pricing_config=pricing_config)
         assert isinstance(result, CostFailure)
-        assert result.ok is False
         assert result.error_type == "pricing_not_found"
 
     def test_returns_cost_failure_for_invalid_usage(self, pricing_config):

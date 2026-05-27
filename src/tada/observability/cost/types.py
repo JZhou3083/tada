@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from decimal import Decimal
-from typing import Literal, TypedDict
+from typing import TypedDict
 
 
 class LLMTokenUsage(TypedDict, total=False):
@@ -23,11 +23,11 @@ class CostComponent:
     cost_usd: Decimal
 
 
+# TODO: remove OK discriminator and just use type checks?
 @dataclass(frozen=True, slots=True)
 class CostSuccess:
     """Successful cost calculation result."""
 
-    ok: Literal[True] = field(default=True, init=False)
     model_name: str
     breakdown: tuple[CostComponent, ...]
     total_cost_usd: Decimal
@@ -37,10 +37,9 @@ class CostSuccess:
 class CostFailure:
     """Cost calculation result when cost cannot be calculated."""
 
-    ok: Literal[False] = field(default=False, init=False)
     model_name: str
     error_type: str
     error_message: str
 
 
-CostResult = CostSuccess | CostFailure
+type CostResult = CostSuccess | CostFailure
