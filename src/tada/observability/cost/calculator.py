@@ -92,8 +92,6 @@ def calculate_cost(
     """
     Calculate the estimated USD cost for a model usage record.
 
-    Pricing is resolved by exact model name first, then by prefix match.
-
     Args:
         model_name: Model name reported by the provider.
         usage: Token usage metrics for the request.
@@ -109,7 +107,6 @@ def calculate_cost(
         and total estimated cost in USD.
 
     Notes:
-        - Costs are returned as floats rounded to 6 decimal places.
         - Missing usage values are treated as zero.
         - Input cost excludes cached input tokens.
     """
@@ -119,7 +116,7 @@ def calculate_cost(
         usage_keys=list(usage.keys()) if usage else [],
     )
 
-    if not pricing_config:
+    if pricing_config is None:
         pricing_config = load_pricing_config()
 
     if model_name not in pricing_config.pricing:
@@ -132,14 +129,6 @@ def calculate_cost(
     cached_tokens = _get_token_count(usage, "cached_content_token_count")
 
     if cached_tokens > prompt_tokens:
-        logger.warning(
-            "cost.usage.invalid",
-            reason="cached_tokens_exceed_prompt_tokens",
-            model_name=model_name,
-            prompt_token_count=prompt_tokens,
-            cached_content_token_count=cached_tokens,
-        )
-
         raise InvalidUsageError(
             "cached_content_token_count cannot exceed prompt_token_count"
         )
@@ -180,6 +169,7 @@ def safe_calculate_cost(
 ) -> CostResult:
     try:
         return calculate_cost(model_name, usage, pricing_config=pricing_config)
+
     except CostError as exc:
         logger.warning(
             "cost.error.handled",
