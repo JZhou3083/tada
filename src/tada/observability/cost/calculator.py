@@ -10,7 +10,7 @@ from tada.observability.cost.errors import (
     InvalidUsageError,
     PricingNotFoundError,
 )
-from tada.observability.cost.pricing import get_model_pricing, load_pricing_config
+from tada.observability.cost.pricing import load_pricing_config
 from tada.observability.cost.schemas import ModelPricing, PricingConfig
 from tada.observability.cost.types import (
     CostComponent,
@@ -122,10 +122,10 @@ def calculate_cost(
     if not pricing_config:
         pricing_config = load_pricing_config()
 
-    model_pricing = get_model_pricing(model_name, pricing_config.pricing)
-
-    if model_pricing is None:
+    if model_name not in pricing_config.pricing:
         raise PricingNotFoundError(f"No pricing found for model: {model_name!r}")
+
+    model_pricing = pricing_config.pricing[model_name]
 
     # Guard against invalid token usage figures - cached input cannot exceed full input
     prompt_tokens = _get_token_count(usage, "prompt_token_count")
