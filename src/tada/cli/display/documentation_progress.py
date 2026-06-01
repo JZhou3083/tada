@@ -23,6 +23,7 @@ from tada.graph.events import (
     GraphStatusEvent,
     GraphStatusStore,
     IssueSeverity,
+    LLMUsage,
     Status,
     StatusIssue,
 )
@@ -80,6 +81,12 @@ class DocumentationProgressDisplay:
 
         return Group(*items)
 
+    def _format_token_count(self, usage: LLMUsage) -> str:
+        return f"{usage.total_tokens:,}" if usage.total_tokens > 0 else "-"
+
+    def _format_total_cost_usd(self, usage: LLMUsage) -> str:
+        return f"${usage.total_cost_usd:.4f}" if usage.total_cost_usd > 0 else "-"
+
     def _build_sections_table(self, store: GraphStatusStore) -> Table:
         tbl = Table(
             show_header=True,
@@ -102,16 +109,8 @@ class DocumentationProgressDisplay:
                 no_wrap=True,
             )
 
-            token_count_element = (
-                str(sec_status.llm_usage.total_tokens)
-                if sec_status.llm_usage.total_tokens > 0
-                else "-"
-            )
-            total_cost_element = (
-                str(sec_status.llm_usage.total_cost_usd)
-                if sec_status.llm_usage.total_cost_usd > 0
-                else "-"
-            )
+            token_count_element = self._format_token_count(sec_status.llm_usage)
+            total_cost_element = self._format_total_cost_usd(sec_status.llm_usage)
 
             tbl.add_row(
                 sec_name,
@@ -166,6 +165,19 @@ class DocumentationProgressDisplay:
                     "dots",
                     text=SUMMARY_RUNNING_TEXT,
                     style="cyan",
+                )
+            )
+
+        summary_usage = summary_status.llm_usage
+
+        if summary_usage.total_tokens > 0 or summary_usage.total_cost_usd > 0:
+            summary_grid.add_row(
+                Text(
+                    (
+                        f"Tokens: {self._format_token_count(summary_usage)}  "
+                        f"Cost: {self._format_total_cost_usd(summary_usage)}"
+                    ),
+                    style="dim",
                 )
             )
 

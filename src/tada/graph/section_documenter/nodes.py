@@ -130,6 +130,13 @@ def generate_section_documentation(
         ),
     )
 
+    # Update the live token & cost tracking display
+    emit_graph_status(
+        name=state["section"].value,
+        kind=StepKind.SECTION,
+        llm_response_metadata=response.metadata,
+    )
+
     return {
         "generated_section_doc": response.content,
         "generation_attempts": state["generation_attempts"] + 1,
@@ -184,6 +191,7 @@ def evaluate_section_documentation(state: SectionDocumenterState) -> dict[str, A
         state=SectionState.EVALUATING,
         attempts=state["generation_attempts"],
         issues=issues_from_eval_result(evaluation_response.content),
+        llm_response_metadata=evaluation_response.metadata,
     )
 
     return {"evaluation_history": [evaluation_response.content]}

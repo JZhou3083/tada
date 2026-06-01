@@ -68,6 +68,13 @@ def summarize_all_sections_documentation(state: OverallState) -> OutputState:
             config=build_base_generation_config(),
         )
 
+        # Update live display with token usage and cost info
+        emit_graph_status(
+            name="summary",
+            kind=StepKind.SUMMARY,
+            llm_response_metadata=response.metadata,
+        )
+
         final_doc_parts = [response.content] + ordered_section_docs
 
     emit_graph_status(
