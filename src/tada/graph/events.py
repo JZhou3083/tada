@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from decimal import Decimal
 from enum import IntEnum, StrEnum
 from typing import Iterable, Self
 
@@ -44,10 +45,23 @@ class StatusIssue:
 
 
 @dataclass(frozen=True)
+class LLMUsage:
+    total_tokens: int = 0
+    total_cost_usd: Decimal = Decimal("0")
+
+    def __add__(self, other: "LLMUsage") -> "LLMUsage":
+        return LLMUsage(
+            total_tokens=self.total_tokens + other.total_tokens,
+            total_cost_usd=self.total_cost_usd + other.total_cost_usd,
+        )
+
+
+@dataclass(frozen=True)
 class Status:
     state: SectionState = SectionState.PENDING
     attempts: int = 0
     issues: tuple[StatusIssue, ...] = field(default_factory=tuple)
+    llm_usage: LLMUsage = field(default_factory=LLMUsage)
 
 
 @dataclass(frozen=True)
@@ -59,6 +73,8 @@ class StatusUpdate:
     # () = clear issues
     # (...) = replace issues
     issues: tuple[StatusIssue, ...] | None = None
+
+    llm_usage_delta: LLMUsage | None = None
 
 
 @dataclass(frozen=True)
@@ -89,12 +105,22 @@ class GraphStatusStore:
     ) -> Status:
         current = current or Status()
 
+        updated_state = update.state if update.state is not None else current.state
+        updated_attempts = (
+            update.attempts if update.attempts is not None else current.attempts
+        )
+        updated_issues = update.issues if update.issues is not None else current.issues
+        updated_llm_usage = (
+            (current.llm_usage + update.llm_usage_delta)
+            if update.llm_usage_delta
+            else current.llm_usage
+        )
+
         return Status(
-            state=update.state if update.state is not None else current.state,
-            attempts=update.attempts
-            if update.attempts is not None
-            else current.attempts,
-            issues=update.issues if update.issues is not None else current.issues,
+            state=updated_state,
+            attempts=updated_attempts,
+            issues=updated_issues,
+            llm_usage=updated_llm_usage,
         )
 
     @classmethod
