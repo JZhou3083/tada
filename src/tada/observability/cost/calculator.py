@@ -8,6 +8,7 @@ import structlog
 from tada.observability.cost.errors import (
     CostError,
     InvalidUsageError,
+    MissingUsageError,
     PricingNotFoundError,
 )
 from tada.observability.cost.pricing import load_pricing_config
@@ -107,7 +108,9 @@ def calculate_cost(
         and total estimated cost in USD.
 
     Notes:
-        - Missing usage values are treated as zero.
+        - Non-essential individual token fields (thoughts/cached input) are treated as zero if missing.
+        - Missing input/output token fields will result in an invalid usage error.
+        - Missing usage metadata as a whole (empty payload) is treated as unknown and returns a missing usage error.
         - Input cost excludes cached input tokens.
     """
     logger.debug(
@@ -115,6 +118,17 @@ def calculate_cost(
         model_name=model_name,
         usage_keys=list(usage.keys()) if usage else [],
     )
+
+    if not usage:
+        raise MissingUsageError("Token usage payload was empty")
+
+    has_prompt = "prompt_token_count" in usage
+    has_candidates = "candidates_token_count" in usage
+
+    if not has_prompt and not has_candidates:
+        raise InvalidUsageError(
+            "Usage metadata did not include prompt or candidate token counts."
+        )
 
     if pricing_config is None:
         pricing_config = load_pricing_config()

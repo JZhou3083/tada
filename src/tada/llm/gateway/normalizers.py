@@ -3,6 +3,27 @@ from typing import Sequence
 from google.genai import types
 from pydantic import BaseModel
 
+from tada.observability.cost.types import LLMTokenUsage
+
+# ------------------------
+# Usage observability
+# ------------------------
+
+
+def normalize_genai_usage_metadata(
+    usage_metadata: types.GenerateContentResponseUsageMetadata | None,
+) -> LLMTokenUsage:
+    if usage_metadata is None:
+        return {}
+
+    return {
+        "prompt_token_count": usage_metadata.prompt_token_count,
+        "cached_content_token_count": usage_metadata.cached_content_token_count,
+        "thoughts_token_count": usage_metadata.thoughts_token_count,
+        "candidates_token_count": usage_metadata.candidates_token_count,
+    }
+
+
 # ------------------------
 # Contents handling
 # ------------------------
@@ -31,12 +52,12 @@ def _contents_from_text_parts(text_parts: Sequence[str]) -> types.Content:
         )
 
     return types.Content(
-        role="user",
         parts=[types.Part.from_text(text=part) for part in text_parts],
+        role="user",
     )
 
 
-def _normalize_contents(
+def normalize_contents(
     contents: types.ContentListUnionDict | Sequence[str] | str,
 ) -> types.ContentListUnionDict:
     """Normalise supported prompt inputs into Google GenAI content format.
@@ -106,7 +127,7 @@ def _coerce_config(
     return types.GenerateContentConfig.model_validate(config)
 
 
-def _validate_schema_model(schema_model: object) -> None:
+def validate_schema_model(schema_model: object) -> None:
     """Validate that an object is a Pydantic model class.
 
     Args:
@@ -123,7 +144,7 @@ def _validate_schema_model(schema_model: object) -> None:
         )
 
 
-def _resolve_structured_config(
+def resolve_structured_config(
     schema_model: type[BaseModel],
     config: types.GenerateContentConfigOrDict | None,
 ) -> types.GenerateContentConfig:
