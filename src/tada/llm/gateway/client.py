@@ -20,7 +20,7 @@ from tada.llm.gateway.normalizers import (
     resolve_structured_config,
     validate_schema_model,
 )
-from tada.llm.gateway.retries import _is_retryable_genai_error, _log_retry
+from tada.llm.gateway.retries import is_retryable_genai_error, log_retry
 from tada.llm.gateway.telemetry import log_and_trace_usage
 from tada.llm.gateway.types import GatewayResponse, ResponseMetadata
 from tada.observability.cost import safe_calculate_cost
@@ -33,6 +33,7 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger("tada")
 T = TypeVar("T", bound=BaseModel)
 
 
+# TODO: should this gateway produce it's own spans for content generation rather than relying on auto instrumentation?
 class VertexAIGateway:
     """Small gateway around the Google GenAI client.
 
@@ -43,10 +44,10 @@ class VertexAIGateway:
         self.client = client
 
     @retry(
-        retry=retry_if_exception(_is_retryable_genai_error),
+        retry=retry_if_exception(is_retryable_genai_error),
         wait=wait_exponential_jitter(initial=1, max=10, jitter=0.25),
         stop=stop_after_attempt(4),
-        before_sleep=_log_retry,
+        before_sleep=log_retry,
         reraise=True,
     )
     def _generate_content_with_retry(

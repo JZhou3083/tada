@@ -12,7 +12,7 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 # ------------------------
 
 
-def _log_retry(retry_state: RetryCallState) -> None:
+def log_retry(retry_state: RetryCallState) -> None:
     """Structured log emitted by tenacity before each sleep between retries."""
     # .outcome & .next_action are guaranteed at call time, but we guard in-line with type-checkers.
     exc = retry_state.outcome.exception() if retry_state.outcome is not None else None
@@ -31,7 +31,7 @@ def _log_retry(retry_state: RetryCallState) -> None:
     )
 
 
-def _is_retryable_genai_error(exc: BaseException) -> bool:
+def is_retryable_genai_error(exc: BaseException) -> bool:
     """Return whether a GenAI exception should be retried.
 
     Retries are limited to Google GenAI API errors with status code `429`, which
