@@ -1,5 +1,5 @@
 currency: USD
-unit: tokens_per_million
+unit: per_1m_tokens
 
 # Decimal values are written as strings to avoid precision errors resulting from pyyaml auto-conversion to float
 pricing:

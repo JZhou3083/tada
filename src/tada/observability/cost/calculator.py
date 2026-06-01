@@ -55,40 +55,30 @@ def _calculate_component_cost(
     rate_per_1m: Decimal | None,
 ) -> Decimal:
     """Calculate the USD cost for a token component using a per-1M token rate."""
+
     if not tokens or rate_per_1m is None:
         return Decimal("0")
 
     return Decimal(tokens) * rate_per_1m / Decimal("1000000")
 
 
-def calculate_cost(
+def unsafe_calculate_cost(
     model_name: str,
-    usage: LLMTokenUsage,
+    token_usage: LLMTokenUsage,
     *,
     pricing_config: PricingConfig | None = None,
 ) -> CostSuccess:
     """
-    Calculate the estimated USD cost for a model usage record.
+    Estimate the USD cost of an LLM call from token usage.
 
     Args:
-        model_name: Model name reported by the provider.
-        usage: Token usage metrics for the request.
-
-    Expected usage keys:
-        prompt_token_count: Total prompt/input tokens.
-        cached_content_token_count: Prompt tokens served from cache.
-        thoughts_token_count: Internal reasoning/thinking tokens, if reported.
-        candidates_token_count: Output/completion tokens.
+        model_name: Provider-reported model name.
+        token_usage: Token usage for the request.
+        pricing_config: Optional pricing configuration to override the library default.
 
     Returns:
-        A CostSuccess dataclass containing the model name, per-component cost breakdown,
-        and total estimated cost in USD.
-
-    Notes:
-        - Non-essential individual token fields (thoughts/cached input) are treated as zero if missing.
-        - Missing input/output token fields will result in an invalid usage error.
-        - Missing usage metadata as a whole (empty payload) is treated as unknown and returns a missing usage error.
-        - Input cost excludes cached input tokens.
+        A `CostSuccess` containing the model name, a breakdown of costs by component,
+        and the total estimated cost in USD.
     """
     logger.debug(
         "cost.calculation.started",
@@ -105,7 +95,7 @@ def calculate_cost(
 
     breakdown: list[CostComponent] = []
     for component_name, token_counter, rate_getter in COST_COMPONENTS:
-        tokens = token_counter(usage)
+        tokens = token_counter(token_usage)
         rate = rate_getter(model_pricing)
         cost_usd = _calculate_component_cost(tokens, rate)
 
@@ -137,8 +127,25 @@ def safe_calculate_cost(
     *,
     pricing_config: PricingConfig | None = None,
 ) -> CostResult:
+    """
+    Estimate the USD cost of an LLM call from token usage.
+
+    Unlike `unsafe_calculate_cost`, this function handles recoverable failure cases
+    gracefully, such as missing pricing data, without raising runtime errors.
+
+    Args:
+        model_name: Provider-reported model name.
+        usage: Token usage for the request.
+        pricing_config: Optional pricing configuration to override the library default.
+
+    Returns:
+        A `CostResult`, which is either:
+        - `CostSuccess`: Contains the model name, a breakdown of costs by component,
+          and the total estimated cost in USD.
+        - `CostFailure`: Contains details about why the cost calculation could not be completed.
+    """
     try:
-        return calculate_cost(model_name, usage, pricing_config=pricing_config)
+        return unsafe_calculate_cost(model_name, usage, pricing_config=pricing_config)
 
     except CostError as exc:
         logger.warning(

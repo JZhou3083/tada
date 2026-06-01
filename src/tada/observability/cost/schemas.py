@@ -32,7 +32,9 @@ class ModelPricing(BaseModel):
     max_prompt_tokens: int | None = Field(default=None, gt=0)
     cache_storage_cost_per_1m_tokens_per_hr: Decimal | None = Field(default=None, ge=0)
 
-    effective_from: date
+    effective_from: (
+        date  # FYI - effective date is currently unused in the cost calculation
+    )
     source: HttpUrl
 
 
@@ -41,10 +43,9 @@ class PricingConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    # Static currency & unit are included to ensure that all configs include this information
-    # TODO: should the model pricing include this in variable names itself?
-    currency: Literal["USD"]
-    unit: Literal["tokens_per_million"]
+    # The static currency & unit fields are required in each config to make them self-documenting
+    currency: Literal["USD"] = "USD"
+    unit: Literal["per_1m_tokens"] = "per_1m_tokens"
     pricing: dict[ModelName, ModelPricing]
 
     @field_validator("pricing")
