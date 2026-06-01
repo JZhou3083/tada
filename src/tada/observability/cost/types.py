@@ -59,6 +59,7 @@ class LLMTokenUsage(BaseModel):
         )
 
 
+@dataclass(frozen=True)
 class CostComponent(BaseModel):
     """Cost breakdown for a single token component."""
 
@@ -67,7 +68,7 @@ class CostComponent(BaseModel):
     cost_usd: Decimal
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class CostSuccess:
     """Successful cost calculation result."""
 
@@ -76,7 +77,7 @@ class CostSuccess:
     total_cost_usd: Decimal
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class CostFailure:
     """Cost calculation result when cost cannot be calculated."""
 
