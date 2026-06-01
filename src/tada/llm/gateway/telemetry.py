@@ -1,11 +1,10 @@
 from typing import Any
 
 import structlog
-from google.genai import types
 from opentelemetry import trace
 
 from tada.observability.cost.calculator import safe_calculate_cost
-from tada.observability.cost.types import CostResult, CostSuccess
+from tada.observability.cost.types import CostResult, CostSuccess, LLMTokenUsage
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -27,25 +26,19 @@ def _build_cost_fields(result: CostResult) -> dict[str, Any]:
     }
 
 
-def _log_and_trace_usage(
+def log_and_trace_usage(
     model_name: str,
-    usage_metadata: types.GenerateContentResponseUsageMetadata,
+    token_usage: LLMTokenUsage,
     elapsed_seconds: float,
+    cost: CostResult | None = None,
 ) -> None:
-    cost = safe_calculate_cost(
-        model_name=model_name,
-        usage={
-            "prompt_token_count": usage_metadata.prompt_token_count,
-            "cached_content_token_count": usage_metadata.cached_content_token_count,
-            "thoughts_token_count": usage_metadata.thoughts_token_count,
-            "candidates_token_count": usage_metadata.candidates_token_count,
-        },
-    )
+    if cost is None:
+        cost = safe_calculate_cost(model_name=model_name, usage=token_usage)
 
     fields: dict[str, Any] = {
         "llm.model": model_name,
         "llm.response.elapsed_seconds": elapsed_seconds,
-        "llm.token_count.total": usage_metadata.total_token_count,
+        "llm.token_count.total": token_usage.total_tokens,
         **_build_cost_fields(cost),
     }
 

@@ -11,11 +11,11 @@ class ResponseMetadata:
     """Standardised metadata for all LLM gateway calls."""
 
     model_name: str
-    elapsed_second: float
-    prompt_tokens: int
-    completion_tokens: int
-    total_tokens: int
+    elapsed_seconds: float
     cost: CostResult
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    total_tokens: int | None = None
 
 
 @dataclass(frozen=True)

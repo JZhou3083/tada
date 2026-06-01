@@ -10,18 +10,18 @@ from tada.observability.cost.types import LLMTokenUsage
 # ------------------------
 
 
-def normalize_genai_usage_metadata(
+def normalize_genai_usage(
     usage_metadata: types.GenerateContentResponseUsageMetadata | None,
-) -> LLMTokenUsage:
+) -> LLMTokenUsage | None:
     if usage_metadata is None:
-        return {}
+        return None
 
-    return {
-        "prompt_token_count": usage_metadata.prompt_token_count,
-        "cached_content_token_count": usage_metadata.cached_content_token_count,
-        "thoughts_token_count": usage_metadata.thoughts_token_count,
-        "candidates_token_count": usage_metadata.candidates_token_count,
-    }
+    return LLMTokenUsage(
+        input_tokens=usage_metadata.prompt_token_count,
+        cached_input_tokens=usage_metadata.cached_content_token_count,
+        thoughts_tokens=usage_metadata.thoughts_token_count,
+        output_tokens=usage_metadata.candidates_token_count,
+    )
 
 
 # ------------------------

@@ -7,8 +7,6 @@ import structlog
 
 from tada.observability.cost.errors import (
     CostError,
-    InvalidUsageError,
-    MissingUsageError,
     PricingNotFoundError,
 )
 from tada.observability.cost.pricing import load_pricing_config
@@ -29,48 +27,27 @@ RateGetter = Callable[[ModelPricing], Decimal | None]
 COST_COMPONENTS: tuple[tuple[str, TokenCounter, RateGetter], ...] = (
     (
         "cached_input",
-        lambda usage: _get_token_count(usage, "cached_content_token_count"),
+        lambda usage: usage.billable_cached_input_tokens,
         lambda pricing: (
             pricing.cached_input_cost_per_1m or pricing.input_cost_per_1m
         ),  # if cached input cost is not provided, fall back to regular input cost
     ),
     (
         "input",
-        lambda usage: max(
-            _get_token_count(usage, "prompt_token_count")
-            - _get_token_count(usage, "cached_content_token_count"),
-            0,
-        ),
+        lambda usage: usage.billable_input_tokens,
         lambda pricing: pricing.input_cost_per_1m,
     ),
     (
         "thoughts",
-        lambda usage: _get_token_count(usage, "thoughts_token_count"),
+        lambda usage: usage.billable_thoughts_tokens,
         lambda pricing: pricing.thoughts_cost_per_1m,
     ),
     (
         "output",
-        lambda usage: _get_token_count(usage, "candidates_token_count"),
+        lambda usage: usage.billable_output_tokens,
         lambda pricing: pricing.output_cost_per_1m,
     ),
 )
-
-
-def _get_token_count(usage: LLMTokenUsage, key: str) -> int:
-    """Return a non-negative token count from a usage payload."""
-    value = usage.get(key, 0)
-
-    if value is None:
-        return 0
-
-    # Since bool is a subclass of int specifically catch edge-case value: bool
-    if isinstance(value, bool) or not isinstance(value, int):
-        raise InvalidUsageError(f"{key} must be an int, got {type(value).__name__}")
-
-    if value < 0:
-        raise InvalidUsageError(f"{key} must be non-negative")
-
-    return value
 
 
 def _calculate_component_cost(
@@ -116,19 +93,7 @@ def calculate_cost(
     logger.debug(
         "cost.calculation.started",
         model_name=model_name,
-        usage_keys=list(usage.keys()) if usage else [],
     )
-
-    if not usage:
-        raise MissingUsageError("Token usage payload was empty")
-
-    has_prompt = "prompt_token_count" in usage
-    has_candidates = "candidates_token_count" in usage
-
-    if not has_prompt and not has_candidates:
-        raise InvalidUsageError(
-            "Usage metadata did not include prompt or candidate token counts."
-        )
 
     if pricing_config is None:
         pricing_config = load_pricing_config()
@@ -137,15 +102,6 @@ def calculate_cost(
         raise PricingNotFoundError(f"No pricing found for model: {model_name!r}")
 
     model_pricing = pricing_config.pricing[model_name]
-
-    # Guard against invalid token usage figures - cached input cannot exceed full input
-    prompt_tokens = _get_token_count(usage, "prompt_token_count")
-    cached_tokens = _get_token_count(usage, "cached_content_token_count")
-
-    if cached_tokens > prompt_tokens:
-        raise InvalidUsageError(
-            "cached_content_token_count cannot exceed prompt_token_count"
-        )
 
     breakdown: list[CostComponent] = []
     for component_name, token_counter, rate_getter in COST_COMPONENTS:

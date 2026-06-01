@@ -15,15 +15,19 @@ from tenacity import (
 )
 
 from tada.llm.gateway.normalizers import (
-    _normalize_contents,
-    _resolve_structured_config,
-    _validate_schema_model,
+    normalize_contents,
+    normalize_genai_usage,
+    resolve_structured_config,
+    validate_schema_model,
 )
 from tada.llm.gateway.retries import _is_retryable_genai_error, _log_retry
-from tada.llm.gateway.telemetry import _log_and_trace_usage
+from tada.llm.gateway.telemetry import log_and_trace_usage
+from tada.llm.gateway.types import GatewayResponse, ResponseMetadata
+from tada.observability.cost import safe_calculate_cost
+from tada.observability.cost.types import CostFailure
 from tada.settings import get_settings
 
-logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
+logger: structlog.stdlib.BoundLogger = structlog.get_logger("tada")
 
 
 T = TypeVar("T", bound=BaseModel)
@@ -84,7 +88,7 @@ class VertexAIGateway:
         model: str,
         contents: types.ContentListUnionDict | Sequence[str] | str,
         config: types.GenerateContentConfigOrDict | None = None,
-    ) -> str:
+    ) -> GatewayResponse[str]:
         """Generate a plain text response from a model.
 
         Retries are applied automatically for 429 RESOURCE_EXHAUSTED errors using
@@ -113,7 +117,7 @@ class VertexAIGateway:
         log = logger.bind(method="generate_text")
         log.info("genai.request.start")
 
-        normalised = _normalize_contents(contents)
+        normalised = normalize_contents(contents)
         t0 = time.perf_counter()
 
         try:
@@ -125,31 +129,53 @@ class VertexAIGateway:
 
             elapsed = round(time.perf_counter() - t0, 3)
 
-            usage = response.usage_metadata
-            usage_fields = (
-                {
-                    "prompt_token_count": usage.prompt_token_count,
-                    "cached_content_token_count": usage.cached_content_token_count,
-                    "thoughts_token_count": usage.thoughts_token_count,
-                    "candidates_token_count": usage.candidates_token_count,
-                }
-                if usage is not None
-                else {}
-            )
-
             if response.text is None:
                 log.warning(
-                    "genai.request.no_text", elapsed_seconds=elapsed, **usage_fields
+                    "genai.request.no_text",
+                    elapsed_seconds=elapsed,
                 )
                 raise ValueError(
                     "Model returned no text response. "
                     "Check whether the response was blocked, empty, or returned only non-text parts."
                 )
 
-            if usage is not None:
-                _log_and_trace_usage(
-                    model_name=model, usage_metadata=usage, elapsed_seconds=elapsed
+            usage_metadata = response.usage_metadata
+            token_usage = normalize_genai_usage(usage_metadata)
+
+            if token_usage is None:
+                log.warning(
+                    "genai.request.no_usage_metadata",
+                    model_name=model,
+                    elapsed_seconds=elapsed,
                 )
+                cost_result = CostFailure(
+                    model_name=model,
+                    error_type="usage_metadata_missing",
+                    error_message="Model response did not include usage metadata, so cost could not be calculated.",
+                )
+            else:
+                cost_result = safe_calculate_cost(
+                    model_name=model,
+                    usage=token_usage,
+                )
+                log_and_trace_usage(
+                    model_name=model,
+                    token_usage=token_usage,
+                    elapsed_seconds=elapsed,
+                    cost=cost_result,
+                )
+
+            response_meta = ResponseMetadata(
+                model_name=model,
+                elapsed_seconds=elapsed,
+                cost=cost_result,
+                input_tokens=token_usage.billable_input_tokens if token_usage else None,
+                output_tokens=token_usage.billable_output_tokens
+                if token_usage
+                else None,
+                total_tokens=token_usage.total_tokens if token_usage else None,
+            )
+            return GatewayResponse(content=response.text, metadata=response_meta)
 
         except APIError as exc:
             log.error(
@@ -164,8 +190,6 @@ class VertexAIGateway:
         finally:
             structlog.contextvars.unbind_contextvars("request_id", "model_name")
 
-        return response.text
-
     def generate_structured_response(
         self,
         *,
@@ -173,7 +197,7 @@ class VertexAIGateway:
         contents: types.ContentListUnionDict | Sequence[str] | str,
         schema_model: type[T],
         config: types.GenerateContentConfigOrDict | None = None,
-    ) -> T:
+    ) -> GatewayResponse[T]:
         """Generate and validate a structured response using a Pydantic model.
 
         The model response is requested as JSON using the schema generated from
@@ -198,29 +222,29 @@ class VertexAIGateway:
                 match `schema_model`.
             ValidationError: If `config` is invalid.
         """
-        _validate_schema_model(schema_model)
+        validate_schema_model(schema_model)
         log = logger.bind(
             method="generate_structured_response", schema=schema_model.__name__
         )
 
-        resolved_config = _resolve_structured_config(
+        resolved_config = resolve_structured_config(
             schema_model=schema_model,
             config=config,
         )
 
-        response_text = self.generate_text(
+        text_response = self.generate_text(
             model=model,
             contents=contents,
             config=resolved_config,
         )
 
         try:
-            response_obj = schema_model.model_validate_json(response_text)
+            response_obj = schema_model.model_validate_json(text_response.content)
         except ValidationError as exc:
             log.error(
                 "genai.structured.validation_error",
                 error=str(exc),
-                response_preview=response_text[:250],
+                response_preview=text_response.content[:250],
             )
             raise ValueError(
                 "Model returned JSON that does not match the expected schema "
@@ -228,7 +252,7 @@ class VertexAIGateway:
             ) from exc
 
         log.info("genai.structured.parsed", schema=schema_model.__name__)
-        return response_obj
+        return GatewayResponse(content=response_obj, metadata=text_response.metadata)
 
 
 @lru_cache(maxsize=1)
