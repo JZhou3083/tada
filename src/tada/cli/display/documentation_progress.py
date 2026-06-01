@@ -91,18 +91,35 @@ class DocumentationProgressDisplay:
         tbl.add_column("Status", no_wrap=True, width=24)
         tbl.add_column("Attempts", no_wrap=True, width=8)
         tbl.add_column("Issues", no_wrap=True, width=12)
+        tbl.add_column("Token Count", no_wrap=True, width=12)
+        tbl.add_column("Total Cost (USD)", no_wrap=True, width=12)
 
         for sec_name, sec_status in store.sections.items():
             color = SECTION_STATE_STYLE.get(sec_status.state, "white")
+            section_status_element = Text(
+                sec_status.state.name.replace("_", " ").title(),
+                style=color,
+                no_wrap=True,
+            )
+
+            token_count_element = (
+                str(sec_status.llm_usage.total_tokens)
+                if sec_status.llm_usage.total_tokens > 0
+                else "-"
+            )
+            total_cost_element = (
+                str(sec_status.llm_usage.total_cost_usd)
+                if sec_status.llm_usage.total_cost_usd > 0
+                else "-"
+            )
+
             tbl.add_row(
                 sec_name,
-                Text(
-                    sec_status.state.name.replace("_", " ").title(),
-                    style=color,
-                    no_wrap=True,
-                ),
+                section_status_element,
                 str(sec_status.attempts) if sec_status.attempts > 0 else "-",
                 self._format_issue_count(sec_status),
+                token_count_element,
+                total_cost_element,
             )
 
         return tbl
