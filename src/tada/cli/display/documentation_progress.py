@@ -168,6 +168,7 @@ class DocumentationProgressDisplay:
                 )
             )
 
+        # TODO: ultimately move away from displaying this usage here and produce a final table using the non streamed overall usage info
         summary_usage = summary_status.llm_usage
 
         if summary_usage.total_tokens > 0 or summary_usage.total_cost_usd > 0:

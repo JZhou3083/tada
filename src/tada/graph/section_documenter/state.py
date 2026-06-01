@@ -1,4 +1,6 @@
 import operator
+
+# from decimal import Decimal
 from typing import Annotated, Any, TypedDict
 
 from tada.domain.sections import WorkbookSection
@@ -14,6 +16,8 @@ class SectionDocumenterInput(TypedDict):
 
 class SectionDocumenterOutput(TypedDict):
     docs_by_section: dict[WorkbookSection, str]
+    # TODO: carry cost breakdown through graph and into final result
+    # cost_breakdown: dict[WorkbookSection, dict[str, Decimal]]
 
 
 class SectionDocumenterState(SectionDocumenterInput, SectionDocumenterOutput):

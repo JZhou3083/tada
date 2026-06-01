@@ -3,6 +3,7 @@ from typing import Any
 
 from langchain_core.callbacks import BaseCallbackHandler
 from langgraph.graph.state import CompiledStateGraph
+from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 from opentelemetry import trace
 
 from tada.application.ports import StatusSink
@@ -23,7 +24,12 @@ def run_graph_with_status(
 
     callbacks_list = list(callbacks or [])
 
-    with tracer.start_as_current_span("langgraph.run"):
+    with tracer.start_as_current_span("langgraph.run") as span:
+        span.set_attribute(
+            SpanAttributes.OPENINFERENCE_SPAN_KIND,
+            OpenInferenceSpanKindValues.CHAIN.value,
+        )
+
         for chunk in graph.stream(
             input_state,
             stream_mode=["values", "custom"],

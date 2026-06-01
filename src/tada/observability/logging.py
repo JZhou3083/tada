@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import logging
-import sys
 from typing import Any
 
 import structlog
+from rich.console import Console
+from rich.text import Text
 
 from tada.cli.state import TadaCliOptions
 from tada.runtime.context import TadaRunContext
@@ -43,11 +44,39 @@ def _add_otel_context(
 
 
 # ---------------------------------------------------------------------------
+# Rich console handler
+# ---------------------------------------------------------------------------
+
+
+class RichConsoleLogHandler(logging.Handler):
+    """
+    A standard logging handler that routes formatted log strings
+    through an existing, shared Rich Console instance.
+    """
+
+    def __init__(self, console: Console):
+        super().__init__()
+        self.console = console
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            # Get the fully processed string from structlog's Formatter
+            msg = self.format(record)
+            # Convert structlog's ANSI color codes into a Rich Text object
+            rich_text = Text.from_ansi(msg)
+            # Print via the singleton console (handles live status/progress safely!)
+            self.console.print(rich_text)
+        except Exception:
+            self.handleError(record)
+
+
+# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
 
 def configure_logging(
+    console: Console,
     run_context: TadaRunContext,
     cli_options: TadaCliOptions,
 ):
@@ -83,7 +112,7 @@ def configure_logging(
     file_handler.setFormatter(file_formatter)
 
     # Configure the Console Handler (Dynamic based on debug flag)
-    console_handler = logging.StreamHandler(sys.stderr)
+    console_handler = RichConsoleLogHandler(console)
     console_handler.setLevel(logging.DEBUG if cli_options.debug else logging.WARNING)
     console_renderer = structlog.dev.ConsoleRenderer(
         colors=True,
