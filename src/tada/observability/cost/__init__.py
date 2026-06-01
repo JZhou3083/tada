@@ -7,7 +7,7 @@ from tada.observability.cost.errors import (
     CostError,
     PricingNotFoundError,
 )
-from tada.observability.cost.pricing import clear_pricing_cache, load_pricing_config
+from tada.observability.cost.pricing import load_pricing_config
 from tada.observability.cost.schemas import ModelPricing, PricingConfig
 from tada.observability.cost.types import (
     CostComponent,
@@ -23,7 +23,6 @@ __all__ = [
     "CostError",
     "PricingNotFoundError",
     "load_pricing_config",
-    "clear_pricing_cache",
     "ModelPricing",
     "PricingConfig",
     "CostResult",

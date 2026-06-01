@@ -32,7 +32,3 @@ def load_pricing_config() -> PricingConfig:
     )
 
     return config
-
-
-def clear_pricing_cache() -> None:
-    load_pricing_config.cache_clear()

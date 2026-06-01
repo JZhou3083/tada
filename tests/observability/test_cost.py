@@ -15,7 +15,7 @@ from tada.observability.cost import (
     ModelPricing,
     PricingConfig,
     PricingNotFoundError,
-    clear_pricing_cache,
+    load_pricing_config,
     safe_calculate_cost,
     unsafe_calculate_cost,
 )
@@ -30,7 +30,7 @@ from tada.observability.cost.types import LLMTokenUsage
 def reset_pricing_cache():
     """Isolate tests from each other by clearing the LRU cache after each test."""
     yield
-    clear_pricing_cache()
+    load_pricing_config.cache_clear()
 
 
 @pytest.fixture
