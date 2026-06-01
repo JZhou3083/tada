@@ -19,8 +19,8 @@ from tada.graph.section_documenter.state import (
     SectionDocumenterState,
     get_latest_eval_result,
 )
-from tada.llm.client import get_vertexai_gateway
 from tada.llm.configs import build_base_generation_config
+from tada.llm.gateway import get_vertexai_gateway
 from tada.llm.schemas import EvalResult
 from tada.observability.otel.observe import observe
 
@@ -117,12 +117,12 @@ def generate_section_documentation(
     if "evaluation_history" in state:
         full_prompt = _add_feedback_to_prompt(full_prompt, state["evaluation_history"])
 
-    client_wrapper = get_vertexai_gateway()
+    gateway = get_vertexai_gateway()
     system_instruction = (resources.files("tada") / "prompts" / "system.md").read_text(
         encoding="utf-8"
     )
 
-    _, section_docs = client_wrapper.generate_text(
+    response = gateway.generate_text(
         model="gemini-3-flash-preview",
         contents=[full_prompt, state["response_template"], json.dumps(state["data"])],
         config=build_base_generation_config(
@@ -131,7 +131,7 @@ def generate_section_documentation(
     )
 
     return {
-        "generated_section_doc": section_docs,
+        "generated_section_doc": response.content,
         "generation_attempts": state["generation_attempts"] + 1,
     }
 
@@ -162,9 +162,10 @@ def evaluate_section_documentation(state: SectionDocumenterState) -> dict[str, A
     evaluator_prompt = (
         resources.files("tada") / "prompts" / "evaluation.md"
     ).read_text(encoding="utf-8")
-    client_wrapper = get_vertexai_gateway()
 
-    _, evaluation = client_wrapper.generate_structured_response(
+    gateway = get_vertexai_gateway()
+
+    evaluation_response = gateway.generate_structured_response(
         model="gemini-3-flash-preview",
         contents=[
             evaluator_prompt,
@@ -182,10 +183,10 @@ def evaluate_section_documentation(state: SectionDocumenterState) -> dict[str, A
         kind=StepKind.SECTION,
         state=SectionState.EVALUATING,
         attempts=state["generation_attempts"],
-        issues=issues_from_eval_result(evaluation),
+        issues=issues_from_eval_result(evaluation_response.content),
     )
 
-    return {"evaluation_history": [evaluation]}
+    return {"evaluation_history": [evaluation_response.content]}
 
 
 def format_blocking_issues_header(eval_result: EvalResult | None) -> str | None:

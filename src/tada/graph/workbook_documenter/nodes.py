@@ -8,8 +8,8 @@ from tada.graph.config import AI_NOTICE
 from tada.graph.events import SectionState
 from tada.graph.helpers import StepKind, emit_graph_status
 from tada.graph.workbook_documenter.state import OutputState, OverallState
-from tada.llm.client import get_vertexai_gateway
 from tada.llm.configs import build_base_generation_config
+from tada.llm.gateway import get_vertexai_gateway
 from tada.observability.otel.observe import observe
 
 logger = logging.getLogger(__name__)
@@ -60,15 +60,15 @@ def summarize_all_sections_documentation(state: OverallState) -> OutputState:
             resources.files("tada") / "prompts" / "summariser.md"
         ).read_text(encoding="utf-8")
 
-        client_wrapper = get_vertexai_gateway()
+        gateway = get_vertexai_gateway()
 
-        _, documentation_summary = client_wrapper.generate_text(
+        response = gateway.generate_text(
             model="gemini-3-flash-preview",
             contents=[summariser_prompt, compiled_doc],
             config=build_base_generation_config(),
         )
 
-        final_doc_parts = [documentation_summary] + ordered_section_docs
+        final_doc_parts = [response.content] + ordered_section_docs
 
     emit_graph_status(
         name="summary",
