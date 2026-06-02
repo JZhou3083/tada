@@ -35,7 +35,7 @@ T = TypeVar("T", bound=BaseModel)
 
 # TODO: should this gateway produce it's own spans for content generation rather than relying on auto instrumentation?
 class VertexAIGateway:
-    """Small gateway around the Google GenAI client.
+    """Gateway around the Google GenAI client.
 
     Provides convenience methods for generating plain text and structured responses.
     """
