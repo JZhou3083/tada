@@ -30,7 +30,7 @@ def route_evaluation_results(
         )
         return "emit"
 
-    elif state["generation_attempts"] > MAX_SECTION_ATTEMPTS:
+    elif state["generation_attempts"] >= MAX_SECTION_ATTEMPTS:
         logger.debug(
             "Hit maximum attempts for %s attempt=%d blocking_issues=%d non_blocking_issues=%d",
             state["section"].value,
