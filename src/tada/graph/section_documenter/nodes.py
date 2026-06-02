@@ -1,9 +1,9 @@
 import json
-import logging
 from functools import partial
 from importlib import resources
 from typing import Any
 
+import structlog
 from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 
 from tada.graph.events import (
@@ -23,10 +23,18 @@ from tada.llm.gateway import get_vertexai_gateway
 from tada.llm.schemas import EvalResult
 from tada.observability.otel.observe import observe
 
-logger = logging.getLogger(__name__)
+logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
 
 def prepare_section(state: SectionDocumenterInput) -> dict[str, Any]:
+    section = state["section"].value
+
+    logger.info(
+        "graph.node.started",
+        node_name="prepare_section",
+        section=section,
+    )
+
     updates = {"generation_attempts": 0}
 
     # Skip all LLM generation - directly to emit - if payload is empty
@@ -44,7 +52,22 @@ def prepare_section(state: SectionDocumenterInput) -> dict[str, Any]:
                 ),
             ),
         )
+
+        logger.info(
+            "graph.node.skipped",
+            node_name="prepare_section",
+            section=section,
+            skip_reason="empty_payload",
+        )
+
         return updates | {"skip_section": True}
+
+    logger.info(
+        "graph.node.completed",
+        node_name="prepare_section",
+        section=section,
+        skip_section=False,
+    )
 
     return updates | {"skip_section": False}
 
@@ -90,7 +113,7 @@ def _add_feedback_to_prompt(prompt: str, feedback: list[EvalResult]) -> str:
 
 
 @observe(
-    "langgraph.nodes.generate_section_documentation",
+    "graph.node.generate_section_documentation",
     attributes={
         SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN.value,
     },
@@ -98,15 +121,21 @@ def _add_feedback_to_prompt(prompt: str, feedback: list[EvalResult]) -> str:
 def generate_section_documentation(
     state: SectionDocumenterState,
 ) -> dict[str, Any]:
+    section = state["section"].value
+    attempt = state["generation_attempts"] + 1
+
+    logger.info(
+        "graph.node.started",
+        node_name="generate_section_documentation",
+        section=section,
+        attempt=attempt,
+        has_evaluation_history="evaluation_history" in state,
+    )
+
     emit_graph_status(
         name=state["section"].value,
         state=SectionState.GENERATING,
         attempts=state["generation_attempts"],
-    )
-    logger.debug(
-        "Beginning generation node label=%s generation_attempt=%d",
-        f"{state['section'].value}:generate",
-        state["generation_attempts"] + 1,
     )
 
     full_prompt = state["prompt"]
@@ -133,6 +162,18 @@ def generate_section_documentation(
         llm_response_metadata=response.metadata,
     )
 
+    logger.info(
+        "graph.node.completed",
+        node_name="generate_section_documentation",
+        section=section,
+        attempt=attempt,
+        model_name=response.metadata.model_name,
+        elapsed_seconds=response.metadata.elapsed_seconds,
+        input_tokens=response.metadata.input_tokens,
+        output_tokens=response.metadata.output_tokens,
+        total_tokens=response.metadata.total_tokens,
+    )
+
     return {
         "generated_section_doc": response.content,
         "generation_attempts": state["generation_attempts"] + 1,
@@ -140,25 +181,37 @@ def generate_section_documentation(
 
 
 @observe(
-    "langgraph.nodes.evaluate_section_documentation",
+    "graph.node.evaluate_section_documentation",
     attributes={
         SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN.value,
     },
 )
 def evaluate_section_documentation(state: SectionDocumenterState) -> dict[str, Any]:
+    section = state["section"].value
+    attempt = state.get("generation_attempts")
+
+    logger.info(
+        "graph.node.started",
+        node_name="evaluate_section_documentation",
+        section=section,
+        attempt=attempt,
+        has_generated_doc="generated_section_doc" in state,
+    )
+
     emit_graph_status(
         name=state["section"].value,
         state=SectionState.EVALUATING,
         attempts=state["generation_attempts"],
     )
 
-    logger.debug(
-        "Beginning evaluation node label=%s generation_attempt=%d",
-        f"{state['section'].value}:evaluate",
-        state.get("generation_attempts"),
-    )
-
     if "generated_section_doc" not in state:
+        logger.error(
+            "graph.node.validation_failed",
+            node_name="evaluate_section_documentation",
+            section=section,
+            attempt=attempt,
+            missing_field="generated_section_doc",
+        )
         raise ValueError("No documentation exists in state to evaluate")
 
     evaluator_prompt = (
@@ -179,13 +232,30 @@ def evaluate_section_documentation(state: SectionDocumenterState) -> dict[str, A
         config=build_base_generation_config(),
     )
 
+    issues = issues_from_eval_result(evaluation_response.content)
+
     # Update graph status with any resulting issues / clear issues if there are none
     emit_graph_status(
         name=state["section"].value,
         state=SectionState.EVALUATING,
         attempts=state["generation_attempts"],
-        issues=issues_from_eval_result(evaluation_response.content),
+        issues=issues,
         llm_response_metadata=evaluation_response.metadata,
+    )
+
+    logger.info(
+        "graph.node.completed",
+        node_name="evaluate_section_documentation",
+        section=section,
+        attempt=attempt,
+        passed=evaluation_response.content.passed,
+        issue_count=len(issues),
+        blocking_issue_count=len(evaluation_response.content.blocking_issues),
+        model_name=evaluation_response.metadata.model_name,
+        elapsed_seconds=evaluation_response.metadata.elapsed_seconds,
+        input_tokens=evaluation_response.metadata.input_tokens,
+        output_tokens=evaluation_response.metadata.output_tokens,
+        total_tokens=evaluation_response.metadata.total_tokens,
     )
 
     return {"evaluation_history": [evaluation_response.content]}
@@ -230,8 +300,19 @@ def _emit_section_documentation_generic(
 ) -> dict[str, Any]:
     """Format results of documentation into a state update to remerge back into the parent branch"""
     section = state["section"]
+    section_name = section.value
     attempts = state.get("generation_attempts", 0)
     doc = state.get("generated_section_doc")
+
+    logger.info(
+        "graph.node.started",
+        node_name="emit_section_documentation",
+        section=section_name,
+        attempts=attempts,
+        final_state=final_state.value,
+        require_doc=require_doc,
+        include_blocking_issues_header=include_blocking_issues_header,
+    )
 
     emit_graph_status(
         name=section.value,
@@ -239,14 +320,30 @@ def _emit_section_documentation_generic(
         attempts=attempts,
     )
 
-    doc = state.get("generated_section_doc")
-
     if doc is None:
         if require_doc:
+            logger.error(
+                "graph.node.validation_failed",
+                node_name="emit_section_documentation",
+                section=section_name,
+                attempts=attempts,
+                final_state=final_state.value,
+                missing_field="generated_section_doc",
+            )
             raise ValueError(
                 "Cannot emit section documentation because generated_section_doc is missing. "
                 f"section={section.value}, attempts={attempts}, final_state={final_state}"
             )
+
+        logger.info(
+            "graph.node.skipped",
+            node_name="emit_section_documentation",
+            section=section_name,
+            attempts=attempts,
+            final_state=final_state.value,
+            skip_reason="missing_doc_allowed",
+        )
+
         return {
             "docs_by_section": {},
         }
@@ -256,6 +353,31 @@ def _emit_section_documentation_generic(
             doc=doc,
             eval_result=get_latest_eval_result(state),
         )
+
+    if final_state == SectionState.REACHED_RETRY_LIMIT:
+        logger.warning(
+            "graph.node.retry_limit_reached",
+            node_name="emit_section_documentation",
+            section=section_name,
+            attempts=attempts,
+            emitted_with_blocking_issues_header=include_blocking_issues_header,
+        )
+
+    logger.info(
+        "graph.section.documentation.emitted",
+        section=section_name,
+        attempts=attempts,
+        final_state=final_state.value,
+        include_blocking_issues_header=include_blocking_issues_header,
+    )
+
+    logger.info(
+        "graph.node.completed",
+        node_name="emit_section_documentation",
+        section=section_name,
+        attempts=attempts,
+        final_state=final_state.value,
+    )
 
     return {"docs_by_section": {section: doc}}
 
