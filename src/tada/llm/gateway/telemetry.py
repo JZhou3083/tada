@@ -39,6 +39,7 @@ def log_and_trace_usage(
         "llm.model": model_name,
         "llm.response.elapsed_seconds": elapsed_seconds,
         "llm.token_count.total": token_usage.total_tokens,
+        "cost_status": "calculated" if isinstance(cost, CostSuccess) else "failed",
         **_build_cost_fields(cost),
     }
 
@@ -48,4 +49,4 @@ def log_and_trace_usage(
             if value is not None:
                 span.set_attribute(key, value)
 
-    logger.info("genai.request.complete", **fields)
+    logger.info("genai.request.completed", **fields)

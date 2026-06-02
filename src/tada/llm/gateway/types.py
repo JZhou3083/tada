@@ -10,6 +10,7 @@ T = TypeVar("T")
 class ResponseMetadata:
     """Standardised metadata for all LLM gateway calls."""
 
+    request_id: str
     model_name: str
     elapsed_seconds: float
     cost: CostResult

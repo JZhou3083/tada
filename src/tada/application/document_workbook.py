@@ -1,7 +1,7 @@
-import logging
 from dataclasses import dataclass
 from pathlib import Path
 
+import structlog
 from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 
 from tada.application.graph_runner import run_graph_with_status
@@ -11,10 +11,9 @@ from tada.domain.workbook import Workbook
 from tada.graph.workbook_documenter.graph import build_documentation_workflow
 from tada.observability.otel.observe import observe
 
-logger = logging.getLogger(__name__)
+logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
 
-# TODO: consider moving to pydantic model for built-in validation
 @dataclass(frozen=True)
 class DocumentWorkbookRequest:
     workbook_path: Path
@@ -39,7 +38,7 @@ class DocumentWorkbookResult:
 
 
 @observe(
-    "app.document",
+    "app.document_workbook",
     attributes={
         SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN.value,
     },
@@ -55,17 +54,30 @@ def document_workbook(
     This function resolves invokes the documentation workflow, and writes the generated
     documentation to disk.
     """
+    logger.debug(
+        "app.document_workbook.started",
+        workbook_path=str(request.workbook_path),
+        output_path=str(request.output_path),
+        section_count=len(request.sections),
+        run_summary_step=request.run_summary_step,
+    )
+
     sink = status_sink or NullStatusSink()
 
     # Pre-process the workbook using our pre-existing XML -> JSON parsing approach
-    logger.debug("Parsing workbook: %s", request.workbook_path)
     workbook = Workbook.from_file(request.workbook_path)
-    logger.debug("Parsed workbook.")
+    logger.info(
+        "app.document_workbook.workbook.parsed",
+        workbook_path=str(request.workbook_path),
+    )
 
     if run_config.debug and run_config.artifacts_dir:
         run_config.artifacts_dir.mkdir(parents=True, exist_ok=True)
         workbook.write_debug(run_config.artifacts_dir)
-        logger.debug("Wrote debug artifacts to %s", run_config.artifacts_dir)
+        logger.info(
+            "app.document_workbook.artifacts.saved",
+            artifacts_dir=str(run_config.artifacts_dir),
+        )
 
     # if run_config.checkpoints_path:
     #     checkpointer = SqliteSaver(sqlite3.connect(run_config.checkpoints_path))
@@ -74,8 +86,9 @@ def document_workbook(
     # TODO: fix checkpointer
     workflow = build_documentation_workflow()
 
-    logger.debug(
-        "Invoking documentation graph...",
+    logger.info(
+        "app.document_workbook.workflow.started",
+        run_id=run_config.run_id,
     )
 
     final_state = run_graph_with_status(
@@ -89,12 +102,24 @@ def document_workbook(
         thread_id=run_config.run_id,
     )
 
-    final_doc = final_state["final_doc"]
+    logger.info(
+        "app.document_workbook.workflow.completed",
+        run_id=run_config.run_id,
+    )
 
-    logger.debug("Graph complete.")
+    final_doc = final_state["final_doc"]
 
     request.output_path.parent.mkdir(parents=True, exist_ok=True)
     request.output_path.write_text(final_doc, encoding="utf-8")
+
+    logger.info(
+        "app.document_workbook.output.saved", output_path=str(request.output_path)
+    )
+    logger.info(
+        "app.document_workbook.completed",
+        output_path=str(request.output_path),
+        run_id=run_config.run_id,
+    )
 
     return DocumentWorkbookResult(
         output_path=request.output_path,

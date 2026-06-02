@@ -27,7 +27,7 @@ from tada.observability.cost import safe_calculate_cost
 from tada.observability.cost.types import CostFailure
 from tada.settings import get_settings
 
-logger: structlog.stdlib.BoundLogger = structlog.get_logger("tada")
+logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
 
 T = TypeVar("T", bound=BaseModel)
@@ -116,7 +116,7 @@ class VertexAIGateway:
         )
 
         log = logger.bind(method="generate_text")
-        log.info("genai.request.start")
+        log.info("genai.request.started", has_config=config is not None)
 
         normalised = normalize_contents(contents)
         t0 = time.perf_counter()
@@ -132,7 +132,7 @@ class VertexAIGateway:
 
             if response.text is None:
                 log.warning(
-                    "genai.request.no_text",
+                    "genai.response.empty",
                     elapsed_seconds=elapsed,
                 )
                 raise ValueError(
@@ -145,7 +145,7 @@ class VertexAIGateway:
 
             if token_usage is None:
                 log.warning(
-                    "genai.request.no_usage_metadata",
+                    "genai.usage.missing",
                     model_name=model,
                     elapsed_seconds=elapsed,
                 )
@@ -167,6 +167,7 @@ class VertexAIGateway:
                 )
 
             response_meta = ResponseMetadata(
+                request_id=request_id,
                 model_name=model,
                 elapsed_seconds=elapsed,
                 cost=cost_result,
@@ -180,7 +181,7 @@ class VertexAIGateway:
 
         except APIError as exc:
             log.error(
-                "genai.request.error",
+                "genai.request.failed",
                 error_type=type(exc).__name__,
                 error=str(exc),
                 status_code=getattr(exc, "code", None),
@@ -243,7 +244,10 @@ class VertexAIGateway:
             response_obj = schema_model.model_validate_json(text_response.content)
         except ValidationError as exc:
             log.error(
-                "genai.structured.validation_error",
+                "genai.structured.validation_failed",
+                request_id=text_response.metadata.request_id,
+                schema=schema_model.__name__,
+                error_type=type(exc).__name__,
                 error=str(exc),
                 response_preview=text_response.content[:250],
             )
@@ -252,7 +256,12 @@ class VertexAIGateway:
                 f"{schema_model.__name__}. Validation error: {exc}"
             ) from exc
 
-        log.info("genai.structured.parsed", schema=schema_model.__name__)
+        log.info(
+            "genai.structured.parsed",
+            request_id=text_response.metadata.request_id,
+            model_name=model,
+            schema=schema_model.__name__,
+        )
         return GatewayResponse(content=response_obj, metadata=text_response.metadata)
 
 

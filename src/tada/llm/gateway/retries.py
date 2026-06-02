@@ -22,12 +22,12 @@ def log_retry(retry_state: RetryCallState) -> None:
         else None
     )
     logger.warning(
-        "genai.retry",
+        "genai.request.retrying",
         attempt=retry_state.attempt_number,
         wait_seconds=wait,
         total_idle_seconds=round(retry_state.idle_for, 2),
-        error_type=type(exc).__name__,
-        error=str(exc),
+        error_type=type(exc).__name__ if exc else None,
+        error=str(exc) if exc else None,
     )
 
 
