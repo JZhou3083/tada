@@ -6,11 +6,6 @@ from typing import Iterable, Self
 from tada.llm.schemas import EvalResult
 
 
-class StepKind(StrEnum):
-    SECTION = "section"
-    SUMMARY = "summary"
-
-
 class IssueSeverity(IntEnum):
     INFO = 1
     WARNING = 2
@@ -80,23 +75,16 @@ class StatusUpdate:
 @dataclass(frozen=True)
 class GraphStatusEvent:
     name: str
-    kind: StepKind
     update: StatusUpdate
 
 
 @dataclass
 class GraphStatusStore:
     sections: dict[str, Status] = field(default_factory=dict)
-    summary: Status | None = None
 
     def apply(self, event: GraphStatusEvent) -> None:
-        match event.kind:
-            case StepKind.SECTION:
-                current = self.sections.get(event.name)
-                self.sections[event.name] = self._merge_status(current, event.update)
-
-            case StepKind.SUMMARY:
-                self.summary = self._merge_status(self.summary, event.update)
+        current = self.sections.get(event.name)
+        self.sections[event.name] = self._merge_status(current, event.update)
 
     def _merge_status(
         self,

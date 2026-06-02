@@ -8,7 +8,6 @@ from tada.graph.events import (
     SectionState,
     StatusIssue,
     StatusUpdate,
-    StepKind,
 )
 from tada.llm.gateway.types import ResponseMetadata
 from tada.observability.cost.types import CostSuccess
@@ -36,7 +35,6 @@ def llm_usage_from_metadata(
 
 def emit_graph_status(
     name: str,
-    kind: StepKind,
     *,
     state: SectionState | None = None,
     attempts: int | None = None,
@@ -59,7 +57,6 @@ def emit_graph_status(
     writer(
         GraphStatusEvent(
             name=name,
-            kind=kind,
             update=StatusUpdate(
                 state=state,
                 attempts=attempts,

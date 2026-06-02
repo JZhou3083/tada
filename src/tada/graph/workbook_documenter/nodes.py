@@ -6,7 +6,7 @@ from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttribu
 from tada.domain.sections import WorkbookSection
 from tada.graph.config import AI_NOTICE
 from tada.graph.events import SectionState
-from tada.graph.helpers import StepKind, emit_graph_status
+from tada.graph.helpers import emit_graph_status
 from tada.graph.workbook_documenter.state import OutputState, OverallState
 from tada.llm.configs import build_base_generation_config
 from tada.llm.gateway import get_vertexai_gateway
@@ -49,10 +49,14 @@ def summarize_all_sections_documentation(state: OverallState) -> OutputState:
 
     final_doc_parts = ordered_section_docs
 
-    if state["run_summary_step"]:
+    if not state["run_summary_step"]:
         emit_graph_status(
             name="summary",
-            kind=StepKind.SUMMARY,
+            state=SectionState.SKIPPED,
+        )
+    else:
+        emit_graph_status(
+            name="summary",
             state=SectionState.GENERATING,
         )
 
@@ -71,17 +75,11 @@ def summarize_all_sections_documentation(state: OverallState) -> OutputState:
         # Update live display with token usage and cost info
         emit_graph_status(
             name="summary",
-            kind=StepKind.SUMMARY,
+            state=SectionState.DONE,
             llm_response_metadata=response.metadata,
         )
 
         final_doc_parts = [response.content] + ordered_section_docs
-
-    emit_graph_status(
-        name="summary",
-        kind=StepKind.SUMMARY,
-        state=SectionState.DONE,
-    )
 
     return {
         "final_doc": "\n\n".join([p.rstrip() for p in [AI_NOTICE] + final_doc_parts])

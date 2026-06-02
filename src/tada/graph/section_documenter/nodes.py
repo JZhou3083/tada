@@ -10,7 +10,6 @@ from tada.graph.events import (
     IssueSeverity,
     SectionState,
     StatusIssue,
-    StepKind,
     issues_from_eval_result,
 )
 from tada.graph.helpers import emit_graph_status
@@ -34,7 +33,6 @@ def prepare_section(state: SectionDocumenterInput) -> dict[str, Any]:
     if not state.get("data"):
         emit_graph_status(
             name=state["section"].value,
-            kind=StepKind.SECTION,
             state=SectionState.SKIPPED,
             attempts=0,
             issues=(
@@ -102,7 +100,6 @@ def generate_section_documentation(
 ) -> dict[str, Any]:
     emit_graph_status(
         name=state["section"].value,
-        kind=StepKind.SECTION,
         state=SectionState.GENERATING,
         attempts=state["generation_attempts"],
     )
@@ -133,7 +130,6 @@ def generate_section_documentation(
     # Update the live token & cost tracking display
     emit_graph_status(
         name=state["section"].value,
-        kind=StepKind.SECTION,
         llm_response_metadata=response.metadata,
     )
 
@@ -152,7 +148,6 @@ def generate_section_documentation(
 def evaluate_section_documentation(state: SectionDocumenterState) -> dict[str, Any]:
     emit_graph_status(
         name=state["section"].value,
-        kind=StepKind.SECTION,
         state=SectionState.EVALUATING,
         attempts=state["generation_attempts"],
     )
@@ -187,7 +182,6 @@ def evaluate_section_documentation(state: SectionDocumenterState) -> dict[str, A
     # Update graph status with any resulting issues / clear issues if there are none
     emit_graph_status(
         name=state["section"].value,
-        kind=StepKind.SECTION,
         state=SectionState.EVALUATING,
         attempts=state["generation_attempts"],
         issues=issues_from_eval_result(evaluation_response.content),
@@ -241,7 +235,6 @@ def _emit_section_documentation_generic(
 
     emit_graph_status(
         name=section.value,
-        kind=StepKind.SECTION,
         state=final_state,
         attempts=attempts,
     )

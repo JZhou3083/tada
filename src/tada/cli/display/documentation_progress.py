@@ -12,7 +12,6 @@ from rich.progress import (
     TimeElapsedColumn,
 )
 from rich.rule import Rule
-from rich.spinner import Spinner
 from rich.table import Table
 from rich.text import Text
 
@@ -29,7 +28,7 @@ from tada.graph.events import (
 )
 
 SECTIONS_TITLE = "Sections"
-SECTIONS_RUNNING_TEXT = "Documenting sections..."
+SECTIONS_RUNNING_TEXT = "Documenting workbook..."
 ISSUES_TITLE = "Issues"
 SUMMARY_TITLE = "Summary"
 SUMMARY_RUNNING_TEXT = "Generating summary..."
@@ -67,15 +66,6 @@ class DocumentationProgressDisplay:
                     Text(""),
                     Rule(ISSUES_TITLE, style="bold yellow"),
                     issues_table,
-                ]
-            )
-
-        if store.summary:
-            items.extend(
-                [
-                    Text(""),
-                    Rule(SUMMARY_TITLE, style="bold green"),
-                    self._build_summary_status(store.summary),
                 ]
             )
 
@@ -153,37 +143,6 @@ class DocumentationProgressDisplay:
 
         return table
 
-    def _build_summary_status(self, summary_status: Status) -> Table:
-        summary_grid = Table.grid(padding=(0, 1))
-        summary_grid.add_column()
-
-        if summary_status.state in SECTION_COMPLETE_STATES:
-            summary_grid.add_row(Text(SUMMARY_DONE_TEXT, style="green"))
-        else:
-            summary_grid.add_row(
-                Spinner(
-                    "dots",
-                    text=SUMMARY_RUNNING_TEXT,
-                    style="cyan",
-                )
-            )
-
-        # TODO: ultimately move away from displaying this usage here and produce a final table using the non streamed overall usage info
-        summary_usage = summary_status.llm_usage
-
-        if summary_usage.total_tokens > 0 or summary_usage.total_cost_usd > 0:
-            summary_grid.add_row(
-                Text(
-                    (
-                        f"Tokens: {self._format_token_count(summary_usage)}  "
-                        f"Cost: {self._format_total_cost_usd(summary_usage)}"
-                    ),
-                    style="dim",
-                )
-            )
-
-        return summary_grid
-
     def _collect_issue_rows(
         self,
         store: GraphStatusStore,
@@ -205,11 +164,6 @@ class DocumentationProgressDisplay:
                 # reduce non-blocking warning noise
                 if issue.severity != IssueSeverity.WARNING:
                     rows.append((section_name, issue))
-
-        # Only want to surface error details for summary if completed
-        if store.summary and store.summary.state in SECTION_COMPLETE_STATES:
-            for issue in store.summary.issues:
-                rows.append(("summary", issue))
 
         return sorted(
             rows,
