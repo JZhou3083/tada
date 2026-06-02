@@ -8,7 +8,7 @@ from tada.domain.sections import WorkbookSection
 SECTIONS_PKG = "tada.prompts.sections"
 
 
-@lru_cache(maxsize=None)
+@lru_cache
 def load_section_documentation_prompts(section: WorkbookSection) -> tuple[str, str]:
     root = resources.files(SECTIONS_PKG)
     prompt = (root / f"{section.value}.prompt.md").read_text(encoding="utf-8")
@@ -16,3 +16,8 @@ def load_section_documentation_prompts(section: WorkbookSection) -> tuple[str, s
         encoding="utf-8"
     )
     return prompt, response_template
+
+
+@lru_cache
+def load_prompt(name: str) -> str:
+    return (resources.files("tada") / "prompts" / name).read_text(encoding="utf-8")
