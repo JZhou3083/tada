@@ -55,5 +55,5 @@ def build_documentation_workflow(
     builder.add_edge(WorkbookNodeId.SUMMARIZE_ALL_SECTION_DOCS, END)
 
     workflow = builder.compile(checkpointer=checkpointer)
-    logger.debug("Workflow compiled:\n%s", workflow.get_graph().draw_ascii())
+
     return workflow

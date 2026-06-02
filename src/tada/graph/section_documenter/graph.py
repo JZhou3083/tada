@@ -79,7 +79,5 @@ def build_section_documenter_subgraph(
     builder.add_edge(SectionNodeId.EMIT_SECTION_DOCS_SKIPPED, END)
 
     workflow = builder.compile(checkpointer=checkpointer)
-    logger.debug(
-        "Section documenting workflow compiled:\n%s", workflow.get_graph().draw_ascii()
-    )
+
     return workflow
