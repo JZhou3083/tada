@@ -1,6 +1,5 @@
 import json
 from functools import partial
-from importlib import resources
 from typing import Any
 
 import structlog
@@ -13,6 +12,7 @@ from tada.graph.events import (
     issues_from_eval_result,
 )
 from tada.graph.helpers import emit_graph_status
+from tada.graph.schemas import LLMCallEvent
 from tada.graph.section_documenter.state import (
     SectionDocumenterInput,
     SectionDocumenterState,
@@ -22,6 +22,7 @@ from tada.llm.configs import build_base_generation_config
 from tada.llm.gateway import get_vertexai_gateway
 from tada.llm.schemas import EvalResult
 from tada.observability.otel.observe import observe
+from tada.prompts import load_prompt
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -135,7 +136,7 @@ def generate_section_documentation(
     emit_graph_status(
         name=state["section"].value,
         state=SectionState.GENERATING,
-        attempts=state["generation_attempts"],
+        attempts=attempt,
     )
 
     full_prompt = state["prompt"]
@@ -144,9 +145,7 @@ def generate_section_documentation(
         full_prompt = _add_feedback_to_prompt(full_prompt, state["evaluation_history"])
 
     gateway = get_vertexai_gateway()
-    system_instruction = (resources.files("tada") / "prompts" / "system.md").read_text(
-        encoding="utf-8"
-    )
+    system_instruction = load_prompt("system.md")
 
     response = gateway.generate_text(
         model="gemini-3-flash-preview",
@@ -176,7 +175,15 @@ def generate_section_documentation(
 
     return {
         "generated_section_doc": response.content,
-        "generation_attempts": state["generation_attempts"] + 1,
+        "generation_attempts": attempt,
+        "llm_calls": [
+            LLMCallEvent(
+                node_name="generate_section_documentation",
+                metadata=response.metadata,
+                section_subgraph=state["section"].value,
+                section_attempt=attempt,
+            )
+        ],
     }
 
 
@@ -214,9 +221,7 @@ def evaluate_section_documentation(state: SectionDocumenterState) -> dict[str, A
         )
         raise ValueError("No documentation exists in state to evaluate")
 
-    evaluator_prompt = (
-        resources.files("tada") / "prompts" / "evaluation.md"
-    ).read_text(encoding="utf-8")
+    evaluator_prompt = load_prompt("evaluation.md")
 
     gateway = get_vertexai_gateway()
 
@@ -258,7 +263,17 @@ def evaluate_section_documentation(state: SectionDocumenterState) -> dict[str, A
         total_tokens=evaluation_response.metadata.total_tokens,
     )
 
-    return {"evaluation_history": [evaluation_response.content]}
+    return {
+        "evaluation_history": [evaluation_response.content],
+        "llm_calls": [
+            LLMCallEvent(
+                node_name="evaluate_section_documentation",
+                metadata=evaluation_response.metadata,
+                section_subgraph=state["section"].value,
+                section_attempt=state["generation_attempts"],
+            )
+        ],
+    }
 
 
 def format_blocking_issues_header(eval_result: EvalResult | None) -> str | None:

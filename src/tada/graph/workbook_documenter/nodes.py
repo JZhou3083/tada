@@ -1,16 +1,16 @@
-from importlib import resources
-
 import structlog
 from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 
 from tada.domain.sections import WorkbookSection
 from tada.graph.config import AI_NOTICE
-from tada.graph.events import SectionState
+from tada.graph.events import IssueSeverity, SectionState, StatusIssue
 from tada.graph.helpers import emit_graph_status
+from tada.graph.schemas import LLMCallEvent
 from tada.graph.workbook_documenter.state import OutputState, OverallState
 from tada.llm.configs import build_base_generation_config
 from tada.llm.gateway import get_vertexai_gateway
 from tada.observability.otel.observe import observe
+from tada.prompts import load_prompt
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger("tada")
 
@@ -49,24 +49,14 @@ def summarize_all_sections_documentation(state: OverallState) -> OutputState:
     ordered_section_docs = [
         docs_by_section[s] for s in SECTION_ORDER if s in docs_by_section
     ]
-    compiled_doc = "\\pagebreak\n\n".join(ordered_section_docs)
 
-    logger.info(
-        "graph.document.compiled",
-        node_name=node_name,
-        section_doc_count=len(docs_by_section),
-        ordered_section_doc_count=len(ordered_section_docs),
-        compiled_doc_chars=len(compiled_doc),
-    )
-
-    final_doc_parts = ordered_section_docs
-
+    # Skip the summary step if specified in the run config
     if not state["run_summary_step"]:
         emit_graph_status(
             name="summary",
             state=SectionState.SKIPPED,
+            attempts=0,
         )
-
         logger.info(
             "graph.node.skipped",
             node_name=node_name,
@@ -75,21 +65,49 @@ def summarize_all_sections_documentation(state: OverallState) -> OutputState:
             section_doc_count=len(docs_by_section),
         )
 
-    else:
+        llm_calls_update = []
+        final_doc_parts = ordered_section_docs
+
+    # Skip the summary step if no documentation was generated to summarize e.g. alll
+    # specified sections were skipped due to being empty.
+    elif not ordered_section_docs:
         emit_graph_status(
             name="summary",
-            state=SectionState.GENERATING,
+            state=SectionState.SKIPPED,
+            attempts=0,
+            issues=(
+                StatusIssue(
+                    "Summary skipped because no section documentation was generated.",
+                    severity=IssueSeverity.INFO,
+                    code="empty-document",
+                    source="graph",
+                ),
+            ),
+        )
+        logger.info(
+            "graph.node.skipped",
+            node_name=node_name,
+            skipped_step="summary_generation",
+            skip_reason="empty_section_docs",
+            section_doc_count=len(docs_by_section),
         )
 
-        summariser_prompt = (
-            resources.files("tada") / "prompts" / "summariser.md"
-        ).read_text(encoding="utf-8")
+        llm_calls_update = []
+        final_doc_parts = [
+            "\n\n_No documentation was generated because all selected sections were empty or skipped._"
+        ]
+
+    else:
+        emit_graph_status(name="summary", state=SectionState.GENERATING, attempts=1)
+
+        summariser_prompt = load_prompt("summariser.md")
 
         gateway = get_vertexai_gateway()
 
+        compiled_parts = "\n---\n".join(ordered_section_docs)
         response = gateway.generate_text(
             model="gemini-3-flash-preview",
-            contents=[summariser_prompt, compiled_doc],
+            contents=[summariser_prompt, compiled_parts],
             config=build_base_generation_config(),
         )
 
@@ -111,8 +129,14 @@ def summarize_all_sections_documentation(state: OverallState) -> OutputState:
         )
 
         final_doc_parts = [response.content] + ordered_section_docs
+        llm_calls_update = [
+            LLMCallEvent(
+                node_name="summarize_all_sections_documentation",
+                metadata=response.metadata,
+            )
+        ]
 
-    final_doc = "\n\n".join([p.rstrip() for p in [AI_NOTICE] + final_doc_parts])
+    final_doc = "\n---\n".join([p.rstrip() for p in [AI_NOTICE] + final_doc_parts])
 
     logger.info(
         "graph.node.completed",
@@ -123,4 +147,4 @@ def summarize_all_sections_documentation(state: OverallState) -> OutputState:
         final_doc_chars=len(final_doc),
     )
 
-    return {"final_doc": final_doc}
+    return {"final_doc": final_doc, "llm_calls": llm_calls_update}

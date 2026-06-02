@@ -1,9 +1,8 @@
 import operator
-
-# from decimal import Decimal
 from typing import Annotated, Any, TypedDict
 
 from tada.domain.sections import WorkbookSection
+from tada.graph.schemas import LLMCallEvent
 from tada.llm.schemas import EvalResult
 
 
@@ -16,8 +15,7 @@ class SectionDocumenterInput(TypedDict):
 
 class SectionDocumenterOutput(TypedDict):
     docs_by_section: dict[WorkbookSection, str]
-    # TODO: carry cost breakdown through graph and into final result
-    # cost_breakdown: dict[WorkbookSection, dict[str, Decimal]]
+    llm_calls: Annotated[list[LLMCallEvent], operator.add]
 
 
 class SectionDocumenterState(SectionDocumenterInput, SectionDocumenterOutput):
