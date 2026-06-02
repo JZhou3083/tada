@@ -8,7 +8,7 @@ from rich.console import Console
 from rich.text import Text
 
 from tada.cli.state import TadaCliOptions
-from tada.runtime.context import TadaRunContext
+from tada.runtime.context import RunContext
 
 # ---------------------------------------------------------------------------
 # Structlog processors
@@ -77,7 +77,7 @@ class RichConsoleLogHandler(logging.Handler):
 
 def configure_logging(
     console: Console,
-    run_context: TadaRunContext,
+    run_context: RunContext,
     cli_options: TadaCliOptions,
 ):
     """Configure logging for one TaDA CLI invocation.

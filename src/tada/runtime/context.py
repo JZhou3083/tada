@@ -36,11 +36,11 @@ class RunPaths:
 
 
 @dataclass(frozen=True)
-class TadaRunContext:
+class RunContext:
     """
     Per-invocation context describing run identity and filesystem layout.
 
-    A ``TadaRunContext`` provides a unique identifier for the run and the
+    A ``RunContext`` provides a unique identifier for the run and the
     canonical paths where run-related data may be written, including logs,
     traces, checkpoints, metadata, and generated artefacts.
     """
@@ -63,7 +63,7 @@ class TadaRunContext:
             state_dir: Base directory where runs are stored.
 
         Returns:
-            A new ``TadaRunContext`` instance.
+            A new ``RunContext`` instance.
         """
         started_at = datetime.now(UTC)
         timestamp = started_at.strftime("%Y-%m-%dT%H-%M-%SZ")
