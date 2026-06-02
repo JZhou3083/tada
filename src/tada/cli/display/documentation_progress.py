@@ -7,7 +7,6 @@ from rich.live import Live
 from rich.progress import (
     BarColumn,
     Progress,
-    SpinnerColumn,
     TextColumn,
     TimeElapsedColumn,
 )
@@ -38,7 +37,6 @@ SUMMARY_DONE_TEXT = "Summary generated"
 class DocumentationProgressDisplay:
     def __init__(self, total_sections: int) -> None:
         self.section_progress = Progress(
-            SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),
             BarColumn(),
             TextColumn("{task.completed}/{task.total} sections"),
@@ -155,10 +153,6 @@ class DocumentationProgressDisplay:
         }
 
         for section_name, section_status in store.sections.items():
-            # Only want to surface error details for completed sections
-            if section_status.state not in SECTION_COMPLETE_STATES:
-                continue
-
             for issue in section_status.issues:
                 # Only display INFO e.g. skipped empty section & blocking errors to
                 # reduce non-blocking warning noise
