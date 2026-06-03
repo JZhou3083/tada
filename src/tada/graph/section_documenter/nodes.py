@@ -15,6 +15,10 @@ from tada.graph.events import (
 from tada.graph.helpers import emit_graph_status
 from tada.graph.schemas import LLMCallEvent
 from tada.graph.section_documenter.context import SectionDocumenterContext
+from tada.graph.section_documenter.document_markdown import (
+    prepend_unresolved_blocking_issues_warning_md,
+)
+from tada.graph.section_documenter.prompts import append_eval_feedback_prompt
 from tada.graph.section_documenter.state import (
     SectionDocumenterInput,
     SectionDocumenterState,
@@ -74,46 +78,6 @@ def prepare_section(state: SectionDocumenterInput) -> dict[str, Any]:
     return updates | {"skip_section": False}
 
 
-def _add_feedback_to_prompt(prompt: str, feedback: list[EvalResult]) -> str:
-    feedback_history = [s.feedback_for_generator for s in feedback if not s.passed]
-    if not feedback_history:
-        return prompt
-
-    if len(feedback_history) == 1:
-        return (
-            prompt
-            + f"""### CRITICAL FEEDBACK (MUST FIX):
-            The Quality Assurance team flagged the following errors in your previous attempt.
-            (e.g., "You missed the calculated field 'Profit Ratio'. You hallucinated a 'Left Join'.")
-            You must ensure these are corrected in this new version:
-            ---------------------------------------------------------
-            {feedback_history[0]}
-            ---------------------------------------------------------
-        """
-        )
-
-    latest_feedback = feedback_history[-1]
-    older_feedback = "\n".join(f"- {fb}" for fb in feedback_history[:-1])
-
-    return (
-        prompt
-        + f"""## CRITICAL FEEDBACK (MUST FIX):
-                The Quality Assurance team identified issues in your previous attempts.
-                Below is the full feedback history. Some of these items were already corrected in earlier revisions, but they are included here to ensure no issue reappears.
-                ---------------------------------------------------------
-                Most Recent Feedback (Must Fix NOW):
-                {latest_feedback}
-                ---------------------------------------------------------
-                Past Feedback (Older Attempts):
-                {older_feedback}
-                ---------------------------------------------------------
-                You must ensure:
-                1. All items in the most recent feedback are fully corrected.
-                2. No issues from past feedback reappear in this version.
-            """
-    )
-
-
 @observe(
     "graph.node.generate_section_documentation",
     attributes={
@@ -143,7 +107,9 @@ def generate_section_documentation(
     full_prompt = state["prompt"]
 
     if "evaluation_history" in state:
-        full_prompt = _add_feedback_to_prompt(full_prompt, state["evaluation_history"])
+        full_prompt = append_eval_feedback_prompt(
+            full_prompt, state["evaluation_history"]
+        )
 
     system_instruction = load_prompt("system.md")
 
@@ -276,36 +242,6 @@ def evaluate_section_documentation(
     }
 
 
-def format_blocking_issues_header(eval_result: EvalResult | None) -> str | None:
-    if eval_result is None or not eval_result.blocking_issues:
-        return None
-
-    lines = [
-        "> [!WARNING]",
-        "> This section was emitted with unresolved blocking issues from the latest evaluation.",
-        ">",
-        "> Blocking issues:",
-    ]
-
-    for issue in eval_result.blocking_issues:
-        lines.append(f"> - `{issue.type}`: {issue.item}")
-
-    return "\n".join(lines)
-
-
-def add_blocking_issues_header(
-    *,
-    doc: str,
-    eval_result: EvalResult | None,
-) -> str:
-    header = format_blocking_issues_header(eval_result)
-
-    if not header:
-        return doc
-
-    return f"{header}\n\n{doc}"
-
-
 def _emit_section_documentation_generic(
     state: SectionDocumenterState,
     *,
@@ -364,7 +300,7 @@ def _emit_section_documentation_generic(
         }
 
     if include_blocking_issues_header:
-        doc = add_blocking_issues_header(
+        doc = prepend_unresolved_blocking_issues_warning_md(
             doc=doc,
             eval_result=get_latest_eval_result(state),
         )

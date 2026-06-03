@@ -6,8 +6,8 @@ from tada.domain.sections import WorkbookSection
 from tada.graph.events import IssueSeverity, SectionState, StatusIssue
 from tada.graph.helpers import emit_graph_status
 from tada.graph.schemas import LLMCallEvent
-from tada.graph.workbook_documenter.constants import AI_NOTICE
 from tada.graph.workbook_documenter.context import WorkbookDocumenterContext
+from tada.graph.workbook_documenter.document_markdown import AI_GENERATED_NOTICE_MD
 from tada.graph.workbook_documenter.state import (
     WorkbookDocumenterOutput,
     WorkbookDocumenterState,
@@ -138,7 +138,9 @@ def summarize_all_sections_documentation(
             )
         ]
 
-    final_doc = "\n---\n".join([p.rstrip() for p in [AI_NOTICE] + final_doc_parts])
+    final_doc = "\n---\n".join(
+        [p.rstrip() for p in [AI_GENERATED_NOTICE_MD] + final_doc_parts]
+    )
 
     logger.info(
         "graph.node.completed",
