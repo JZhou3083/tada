@@ -26,12 +26,9 @@ from tada.graph.events import (
     StatusIssue,
 )
 
-SECTIONS_TITLE = "Sections"
-SECTIONS_RUNNING_TEXT = "Documenting workbook..."
-ISSUES_TITLE = "Issues"
-SUMMARY_TITLE = "Summary"
-SUMMARY_RUNNING_TEXT = "Generating summary..."
-SUMMARY_DONE_TEXT = "Summary generated"
+PROGRESS_SECTION_TITLE = "Documentation Progress"
+PROGRESS_RUNNING_TEXT = "Documenting workbook..."
+ISSUES_SECTION_TITLE = "Issues"
 
 
 class DocumentationProgressDisplay:
@@ -43,7 +40,7 @@ class DocumentationProgressDisplay:
             TimeElapsedColumn(),
         )
         self.section_task_id = self.section_progress.add_task(
-            SECTIONS_RUNNING_TEXT,
+            PROGRESS_RUNNING_TEXT,
             total=total_sections,
         )
 
@@ -51,7 +48,7 @@ class DocumentationProgressDisplay:
         self._sync_progress(store)
 
         items = [
-            Rule(SECTIONS_TITLE, style="bold blue"),
+            Rule(PROGRESS_SECTION_TITLE, style="bold blue", align="left"),
             self._build_sections_table(store),
             Text(""),
             self.section_progress,
@@ -62,7 +59,7 @@ class DocumentationProgressDisplay:
             items.extend(
                 [
                     Text(""),
-                    Rule(ISSUES_TITLE, style="bold yellow"),
+                    Rule(ISSUES_SECTION_TITLE, style="bold yellow", align="left"),
                     issues_table,
                 ]
             )
