@@ -4,7 +4,7 @@ from pathlib import Path
 import structlog
 from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 
-from tada.application.graph_runner import run_graph_with_status
+from tada.application.graph_runner import run_workbook_documenter_graph_with_status
 from tada.application.ports import NullStatusSink, StatusSink
 from tada.domain.sections import WorkbookSection
 from tada.domain.workbook import Workbook
@@ -95,16 +95,15 @@ def document_workbook(
 
     gateway = get_vertexai_gateway()
 
-    final_state = run_graph_with_status(
+    final_state = run_workbook_documenter_graph_with_status(
         graph=workflow,
-        input_state={
+        input={
             "workbook": workbook,
             "generation_plan": request.sections,
             "run_summary_step": request.run_summary_step,
         },
         context=GraphContext(gateway=gateway),
         status_sink=sink,
-        thread_id=run_config.run_id,
     )
 
     logger.info(
