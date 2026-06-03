@@ -3,10 +3,11 @@ from langgraph.runtime import Runtime
 from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 
 from tada.domain.sections import WorkbookSection
-from tada.graph.config import AI_NOTICE, GraphContext
 from tada.graph.events import IssueSeverity, SectionState, StatusIssue
 from tada.graph.helpers import emit_graph_status
 from tada.graph.schemas import LLMCallEvent
+from tada.graph.workbook_documenter.constants import AI_NOTICE
+from tada.graph.workbook_documenter.context import WorkbookDocumenterContext
 from tada.graph.workbook_documenter.state import (
     WorkbookDocumenterOutput,
     WorkbookDocumenterState,
@@ -17,8 +18,6 @@ from tada.prompts import load_prompt
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger("tada")
 
-
-# Section order is mirrored from doc-agent repo config.yaml
 # TODO: investigate whether we actually need to pass the summariser all sections
 SECTION_ORDER = [
     WorkbookSection.DATASOURCES,
@@ -38,17 +37,17 @@ SECTION_ORDER = [
     },
 )
 def summarize_all_sections_documentation(
-    state: WorkbookDocumenterState, runtime: Runtime[GraphContext]
+    state: WorkbookDocumenterState, runtime: Runtime[WorkbookDocumenterContext]
 ) -> WorkbookDocumenterOutput:
     node_name = "summarize_all_sections_documentation"
     docs_by_section = state["docs_by_section"]
-    run_summary_step = state["run_summary_step"]
+    include_summary = state["include_summary"]
 
     logger.info(
         "graph.node.started",
         node_name=node_name,
         section_doc_count=len(docs_by_section),
-        summary_enabled=run_summary_step,
+        summary_enabled=include_summary,
     )
 
     ordered_section_docs = [
@@ -56,7 +55,7 @@ def summarize_all_sections_documentation(
     ]
 
     # Skip the summary step if specified in the run config
-    if not state["run_summary_step"]:
+    if not state["include_summary"]:
         emit_graph_status(
             name="summary",
             state=SectionState.SKIPPED,
@@ -109,7 +108,7 @@ def summarize_all_sections_documentation(
 
         compiled_parts = "\n---\n".join(ordered_section_docs)
         response = runtime.context.gateway.generate_text(
-            model="gemini-3-flash-preview",
+            model=runtime.context.workbook_settings.summary_model,
             contents=[summariser_prompt, compiled_parts],
             config=build_base_generation_config(),
         )
@@ -146,7 +145,7 @@ def summarize_all_sections_documentation(
         node_name=node_name,
         section_doc_count=len(docs_by_section),
         ordered_section_doc_count=len(ordered_section_docs),
-        summary_enabled=run_summary_step,
+        summary_enabled=include_summary,
         final_doc_chars=len(final_doc),
     )
 

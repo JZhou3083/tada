@@ -1,6 +1,10 @@
+from tada.graph.workbook_documenter.context import (
+    WorkbookDocumenterContext,
+    create_workbook_documenter_context,
+)
 from tada.graph.workbook_documenter.graph import (
     WorkbookDocumenterGraph,
-    build_documentation_workflow,
+    build_workbook_documenter_graph,
 )
 from tada.graph.workbook_documenter.settings import (
     WorkbookDocumenterSettings,
@@ -9,13 +13,17 @@ from tada.graph.workbook_documenter.settings import (
 from tada.graph.workbook_documenter.state import (
     WorkbookDocumenterInput,
     WorkbookDocumenterOutput,
+    WorkbookDocumenterState,
 )
 
 __all__ = [
-    "build_documentation_workflow",
+    "WorkbookDocumenterContext",
+    "create_workbook_documenter_context",
     "WorkbookDocumenterGraph",
-    "WorkbookDocumenterInput",
-    "WorkbookDocumenterOutput",
+    "build_workbook_documenter_graph",
     "WorkbookDocumenterSettings",
     "default_workbook_documenter_settings",
+    "WorkbookDocumenterInput",
+    "WorkbookDocumenterOutput",
+    "WorkbookDocumenterState",
 ]

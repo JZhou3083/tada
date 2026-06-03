@@ -59,13 +59,13 @@ def run_document(
     workbook_path = resolve_workbook_arg(workbook_path)
     output_path = resolve_output_arg(output_path, workbook_path)
     sections = resolve_sections_arg(sections, all_sections)
-    run_summary_step = prompt_for_summary_flag()
+    include_summary = prompt_for_summary_flag()
 
     request = DocumentWorkbookRequest(
         workbook_path=workbook_path,
         output_path=output_path,
         sections=sections,
-        run_summary_step=run_summary_step,
+        include_summary=include_summary,
     )
 
     run_config = DocumentWorkbookRunConfig(

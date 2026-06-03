@@ -20,11 +20,13 @@ def _get_section_documenter_payload(section: WorkbookSection, workbook: Workbook
 
 
 def route_plan_to_documenters(state: WorkbookDocumenterInput) -> list[Send]:
-    if not state["generation_plan"]:
-        raise ValueError("generation_plan must contain at least one WorkbookSection")
+    if not state["sections_to_document"]:
+        raise ValueError(
+            "sections_to_document must contain at least one WorkbookSection"
+        )
 
     # De-duplicate plan whilst preserving order
-    sections = list(dict.fromkeys(state["generation_plan"]))
+    sections = list(dict.fromkeys(state["sections_to_document"]))
     return [
         Send(
             WorkbookNodeId.DOCUMENT_SECTION.value,

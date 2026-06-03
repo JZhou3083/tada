@@ -5,7 +5,7 @@ from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
-from tada.graph.config import GraphContext
+from tada.graph.section_documenter.context import SectionDocumenterContext
 from tada.graph.section_documenter.ids import SectionNodeId
 from tada.graph.section_documenter.nodes import (
     emit_section_documentation,
@@ -29,19 +29,19 @@ logger = logging.getLogger(__name__)
 
 SectionDocumenterGraph: TypeAlias = CompiledStateGraph[
     SectionDocumenterState,
-    GraphContext,
+    SectionDocumenterContext,
     SectionDocumenterInput,
     SectionDocumenterOutput,
 ]
 
 
-def build_section_documenter_subgraph(
+def build_section_documenter_graph(
     checkpointer: BaseCheckpointSaver | None = None,
 ) -> SectionDocumenterGraph:
 
     builder = StateGraph(
         SectionDocumenterState,
-        context_schema=GraphContext,
+        context_schema=SectionDocumenterContext,
         input_schema=SectionDocumenterInput,
         output_schema=SectionDocumenterOutput,
     )

@@ -6,7 +6,6 @@ import structlog
 from langgraph.runtime import Runtime
 from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 
-from tada.graph.config import GraphContext
 from tada.graph.events import (
     IssueSeverity,
     SectionState,
@@ -15,6 +14,7 @@ from tada.graph.events import (
 )
 from tada.graph.helpers import emit_graph_status
 from tada.graph.schemas import LLMCallEvent
+from tada.graph.section_documenter.context import SectionDocumenterContext
 from tada.graph.section_documenter.state import (
     SectionDocumenterInput,
     SectionDocumenterState,
@@ -121,7 +121,7 @@ def _add_feedback_to_prompt(prompt: str, feedback: list[EvalResult]) -> str:
     },
 )
 def generate_section_documentation(
-    state: SectionDocumenterState, runtime: Runtime[GraphContext]
+    state: SectionDocumenterState, runtime: Runtime[SectionDocumenterContext]
 ) -> dict[str, Any]:
     section = state["section"].value
     attempt = state["generation_attempts"] + 1
@@ -148,7 +148,7 @@ def generate_section_documentation(
     system_instruction = load_prompt("system.md")
 
     response = runtime.context.gateway.generate_text(
-        model="gemini-3-flash-preview",
+        model=runtime.context.section_settings.documentation_model,
         contents=[full_prompt, state["response_template"], json.dumps(state["data"])],
         config=build_base_generation_config(
             system_instruction=system_instruction,
@@ -194,7 +194,7 @@ def generate_section_documentation(
     },
 )
 def evaluate_section_documentation(
-    state: SectionDocumenterState, runtime: Runtime[GraphContext]
+    state: SectionDocumenterState, runtime: Runtime[SectionDocumenterContext]
 ) -> dict[str, Any]:
     section = state["section"].value
     attempt = state.get("generation_attempts")
@@ -226,7 +226,7 @@ def evaluate_section_documentation(
     evaluator_prompt = load_prompt("evaluation.md")
 
     evaluation_response = runtime.context.gateway.generate_structured_response(
-        model="gemini-3-flash-preview",
+        model=runtime.context.section_settings.evaluation_model,
         contents=[
             evaluator_prompt,
             json.dumps(state["data"]),

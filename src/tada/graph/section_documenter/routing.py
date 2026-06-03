@@ -1,7 +1,9 @@
 import logging
 from typing import Literal
 
-from tada.graph.config import MAX_SECTION_ATTEMPTS
+from langgraph.runtime import Runtime
+
+from tada.graph.section_documenter.context import SectionDocumenterContext
 from tada.graph.section_documenter.state import (
     SectionDocumenterState,
     get_latest_eval_result,
@@ -15,7 +17,7 @@ def route_after_precheck(state: SectionDocumenterState) -> Literal["skip", "gene
 
 
 def route_evaluation_results(
-    state: SectionDocumenterState,
+    state: SectionDocumenterState, runtime: Runtime[SectionDocumenterContext]
 ) -> Literal["emit", "emit_with_issues", "retry"]:
     latest_eval = get_latest_eval_result(state)
     if latest_eval is None:
@@ -30,7 +32,10 @@ def route_evaluation_results(
         )
         return "emit"
 
-    elif state["generation_attempts"] >= MAX_SECTION_ATTEMPTS:
+    elif (
+        state["generation_attempts"]
+        > runtime.context.section_settings.max_documentation_retries
+    ):
         logger.debug(
             "Hit maximum attempts for %s attempt=%d blocking_issues=%d non_blocking_issues=%d",
             state["section"].value,

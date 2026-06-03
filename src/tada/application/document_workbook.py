@@ -8,8 +8,10 @@ from tada.application.graph_runner import run_workbook_documenter_graph_with_sta
 from tada.application.ports import NullStatusSink, StatusSink
 from tada.domain.sections import WorkbookSection
 from tada.domain.workbook import Workbook
-from tada.graph.config import GraphContext
-from tada.graph.workbook_documenter.graph import build_documentation_workflow
+from tada.graph.workbook_documenter import (
+    build_workbook_documenter_graph,
+    create_workbook_documenter_context,
+)
 from tada.llm.gateway import get_vertexai_gateway
 from tada.observability.otel.observe import observe
 
@@ -21,7 +23,7 @@ class DocumentWorkbookRequest:
     workbook_path: Path
     output_path: Path
     sections: list[WorkbookSection]
-    run_summary_step: bool = True
+    include_summary: bool = True
     # save_artifacts: bool = False, # equivalent of debug
 
 
@@ -61,7 +63,7 @@ def document_workbook(
         workbook_path=str(request.workbook_path),
         output_path=str(request.output_path),
         section_count=len(request.sections),
-        run_summary_step=request.run_summary_step,
+        include_summary=request.include_summary,
     )
 
     sink = status_sink or NullStatusSink()
@@ -86,7 +88,7 @@ def document_workbook(
     #     workflow = build_documentation_workflow(checkpointer=checkpointer)
     # else:
     # TODO: fix checkpointer
-    workflow = build_documentation_workflow()
+    workflow = build_workbook_documenter_graph()
 
     logger.info(
         "app.document_workbook.workflow.started",
@@ -94,15 +96,14 @@ def document_workbook(
     )
 
     gateway = get_vertexai_gateway()
-
     final_state = run_workbook_documenter_graph_with_status(
         graph=workflow,
         input={
             "workbook": workbook,
-            "generation_plan": request.sections,
-            "run_summary_step": request.run_summary_step,
+            "sections_to_document": request.sections,
+            "include_summary": request.include_summary,
         },
-        context=GraphContext(gateway=gateway),
+        context=create_workbook_documenter_context(gateway=gateway),
         status_sink=sink,
     )
 

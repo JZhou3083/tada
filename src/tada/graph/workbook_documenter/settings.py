@@ -8,5 +8,5 @@ class WorkbookDocumenterSettings:
 
 def default_workbook_documenter_settings() -> WorkbookDocumenterSettings:
     return WorkbookDocumenterSettings(
-        summary_model="gemini-...",
+        summary_model="gemini-3-flash-preview",
     )

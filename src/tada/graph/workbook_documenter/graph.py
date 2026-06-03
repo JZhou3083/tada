@@ -5,8 +5,8 @@ from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
-from tada.graph.config import GraphContext
-from tada.graph.section_documenter.graph import build_section_documenter_subgraph
+from tada.graph.section_documenter.graph import build_section_documenter_graph
+from tada.graph.workbook_documenter.context import WorkbookDocumenterContext
 from tada.graph.workbook_documenter.ids import WorkbookNodeId
 from tada.graph.workbook_documenter.nodes import (
     summarize_all_sections_documentation,
@@ -23,13 +23,13 @@ logger = logging.getLogger(__name__)
 
 WorkbookDocumenterGraph: TypeAlias = CompiledStateGraph[
     WorkbookDocumenterState,
-    GraphContext,
+    WorkbookDocumenterContext,
     WorkbookDocumenterInput,
     WorkbookDocumenterOutput,
 ]
 
 
-def build_documentation_workflow(
+def build_workbook_documenter_graph(
     checkpointer: BaseCheckpointSaver | None = None,
 ) -> WorkbookDocumenterGraph:
     """Construct and compile the LangGraph workflow for workbook documentation.
@@ -47,13 +47,13 @@ def build_documentation_workflow(
     """
     builder = StateGraph(
         WorkbookDocumenterState,
-        context_schema=GraphContext,
+        context_schema=WorkbookDocumenterContext,
         input_schema=WorkbookDocumenterInput,
         output_schema=WorkbookDocumenterOutput,
     )
 
     builder.add_node(
-        WorkbookNodeId.DOCUMENT_SECTION.value, build_section_documenter_subgraph()
+        WorkbookNodeId.DOCUMENT_SECTION.value, build_section_documenter_graph()
     )
     builder.add_node(
         WorkbookNodeId.SUMMARIZE_ALL_SECTION_DOCS.value,
