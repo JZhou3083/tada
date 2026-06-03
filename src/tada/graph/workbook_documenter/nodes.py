@@ -1,14 +1,17 @@
 import structlog
+from langgraph.runtime import Runtime
 from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 
 from tada.domain.sections import WorkbookSection
-from tada.graph.config import AI_NOTICE
+from tada.graph.config import AI_NOTICE, GraphContext
 from tada.graph.events import IssueSeverity, SectionState, StatusIssue
 from tada.graph.helpers import emit_graph_status
 from tada.graph.schemas import LLMCallEvent
-from tada.graph.workbook_documenter.state import OutputState, OverallState
+from tada.graph.workbook_documenter.state import (
+    WorkbookDocumenterOutput,
+    WorkbookDocumenterState,
+)
 from tada.llm.configs import build_base_generation_config
-from tada.llm.gateway import get_vertexai_gateway
 from tada.observability.otel.observe import observe
 from tada.prompts import load_prompt
 
@@ -34,7 +37,9 @@ SECTION_ORDER = [
         SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN.value,
     },
 )
-def summarize_all_sections_documentation(state: OverallState) -> OutputState:
+def summarize_all_sections_documentation(
+    state: WorkbookDocumenterState, runtime: Runtime[GraphContext]
+) -> WorkbookDocumenterOutput:
     node_name = "summarize_all_sections_documentation"
     docs_by_section = state["docs_by_section"]
     run_summary_step = state["run_summary_step"]
@@ -102,10 +107,8 @@ def summarize_all_sections_documentation(state: OverallState) -> OutputState:
 
         summariser_prompt = load_prompt("summariser.md")
 
-        gateway = get_vertexai_gateway()
-
         compiled_parts = "\n---\n".join(ordered_section_docs)
-        response = gateway.generate_text(
+        response = runtime.context.gateway.generate_text(
             model="gemini-3-flash-preview",
             contents=[summariser_prompt, compiled_parts],
             config=build_base_generation_config(),

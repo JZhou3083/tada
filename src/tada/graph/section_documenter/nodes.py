@@ -3,8 +3,10 @@ from functools import partial
 from typing import Any
 
 import structlog
+from langgraph.runtime import Runtime
 from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 
+from tada.graph.config import GraphContext
 from tada.graph.events import (
     IssueSeverity,
     SectionState,
@@ -19,7 +21,6 @@ from tada.graph.section_documenter.state import (
     get_latest_eval_result,
 )
 from tada.llm.configs import build_base_generation_config
-from tada.llm.gateway import get_vertexai_gateway
 from tada.llm.schemas import EvalResult
 from tada.observability.otel.observe import observe
 from tada.prompts import load_prompt
@@ -120,7 +121,7 @@ def _add_feedback_to_prompt(prompt: str, feedback: list[EvalResult]) -> str:
     },
 )
 def generate_section_documentation(
-    state: SectionDocumenterState,
+    state: SectionDocumenterState, runtime: Runtime[GraphContext]
 ) -> dict[str, Any]:
     section = state["section"].value
     attempt = state["generation_attempts"] + 1
@@ -144,10 +145,9 @@ def generate_section_documentation(
     if "evaluation_history" in state:
         full_prompt = _add_feedback_to_prompt(full_prompt, state["evaluation_history"])
 
-    gateway = get_vertexai_gateway()
     system_instruction = load_prompt("system.md")
 
-    response = gateway.generate_text(
+    response = runtime.context.gateway.generate_text(
         model="gemini-3-flash-preview",
         contents=[full_prompt, state["response_template"], json.dumps(state["data"])],
         config=build_base_generation_config(
@@ -193,7 +193,9 @@ def generate_section_documentation(
         SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN.value,
     },
 )
-def evaluate_section_documentation(state: SectionDocumenterState) -> dict[str, Any]:
+def evaluate_section_documentation(
+    state: SectionDocumenterState, runtime: Runtime[GraphContext]
+) -> dict[str, Any]:
     section = state["section"].value
     attempt = state.get("generation_attempts")
 
@@ -223,9 +225,7 @@ def evaluate_section_documentation(state: SectionDocumenterState) -> dict[str, A
 
     evaluator_prompt = load_prompt("evaluation.md")
 
-    gateway = get_vertexai_gateway()
-
-    evaluation_response = gateway.generate_structured_response(
+    evaluation_response = runtime.context.gateway.generate_structured_response(
         model="gemini-3-flash-preview",
         contents=[
             evaluator_prompt,

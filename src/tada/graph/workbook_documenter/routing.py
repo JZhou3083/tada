@@ -4,7 +4,7 @@ from tada.domain.sections import WorkbookSection
 from tada.domain.workbook import Workbook
 from tada.graph.workbook_documenter.ids import WorkbookNodeId
 from tada.graph.workbook_documenter.state import (
-    InputState,
+    WorkbookDocumenterInput,
 )
 from tada.prompts.loader import load_section_documentation_prompts
 
@@ -19,7 +19,7 @@ def _get_section_documenter_payload(section: WorkbookSection, workbook: Workbook
     }
 
 
-def route_plan_to_documenters(state: InputState) -> list[Send]:
+def route_plan_to_documenters(state: WorkbookDocumenterInput) -> list[Send]:
     if not state["generation_plan"]:
         raise ValueError("generation_plan must contain at least one WorkbookSection")
 
@@ -27,7 +27,7 @@ def route_plan_to_documenters(state: InputState) -> list[Send]:
     sections = list(dict.fromkeys(state["generation_plan"]))
     return [
         Send(
-            WorkbookNodeId.DOCUMENT_SECTION,
+            WorkbookNodeId.DOCUMENT_SECTION.value,
             _get_section_documenter_payload(section, state["workbook"]),
         )
         for section in sections

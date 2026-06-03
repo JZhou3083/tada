@@ -13,18 +13,18 @@ def merge_dicts(a: dict, b: dict) -> dict:
     return a | b
 
 
-class InputState(TypedDict):
+class WorkbookDocumenterInput(TypedDict):
     workbook: Workbook
     generation_plan: list[WorkbookSection]
     run_summary_step: bool
 
 
-class OutputState(TypedDict):
+class WorkbookDocumenterOutput(TypedDict):
     final_doc: str
     llm_calls: Annotated[list[LLMCallEvent], operator.add]
 
 
-class OverallState(InputState, OutputState):
+class WorkbookDocumenterState(WorkbookDocumenterInput, WorkbookDocumenterOutput):
     # docs_by_section is an internal field not exposed in either input or output
     docs_by_section: Annotated[
         dict[WorkbookSection, str],

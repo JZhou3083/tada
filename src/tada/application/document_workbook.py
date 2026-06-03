@@ -8,7 +8,9 @@ from tada.application.graph_runner import run_graph_with_status
 from tada.application.ports import NullStatusSink, StatusSink
 from tada.domain.sections import WorkbookSection
 from tada.domain.workbook import Workbook
+from tada.graph.config import GraphContext
 from tada.graph.workbook_documenter.graph import build_documentation_workflow
+from tada.llm.gateway import get_vertexai_gateway
 from tada.observability.otel.observe import observe
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
@@ -91,6 +93,8 @@ def document_workbook(
         run_id=run_config.run_id,
     )
 
+    gateway = get_vertexai_gateway()
+
     final_state = run_graph_with_status(
         graph=workflow,
         input_state={
@@ -98,6 +102,7 @@ def document_workbook(
             "generation_plan": request.sections,
             "run_summary_step": request.run_summary_step,
         },
+        context=GraphContext(gateway=gateway),
         status_sink=sink,
         thread_id=run_config.run_id,
     )
