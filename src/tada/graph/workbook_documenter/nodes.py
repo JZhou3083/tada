@@ -3,9 +3,9 @@ from langgraph.runtime import Runtime
 from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 
 from tada.domain.sections import WorkbookSection
-from tada.graph.events import IssueSeverity, SectionState, StatusIssue
 from tada.graph.helpers import emit_graph_status
 from tada.graph.schemas import LLMCallEvent
+from tada.graph.status import IssueSeverity, SectionState, StatusIssue
 from tada.graph.workbook_documenter.context import WorkbookDocumenterContext
 from tada.graph.workbook_documenter.document_markdown import AI_GENERATED_NOTICE_MD
 from tada.graph.workbook_documenter.state import (
@@ -16,7 +16,7 @@ from tada.llm.configs import build_base_generation_config
 from tada.observability.otel.observe import observe
 from tada.prompts import load_prompt
 
-logger: structlog.stdlib.BoundLogger = structlog.get_logger("tada")
+logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
 # TODO: investigate whether we actually need to pass the summariser all sections
 SECTION_ORDER = [
@@ -106,12 +106,46 @@ def summarize_all_sections_documentation(
 
         summariser_prompt = load_prompt("summariser.md")
 
+        model_name = runtime.context.workbook_settings.summary_model
         compiled_parts = "\n---\n".join(ordered_section_docs)
-        response = runtime.context.gateway.generate_text(
-            model=runtime.context.workbook_settings.summary_model,
-            contents=[summariser_prompt, compiled_parts],
-            config=build_base_generation_config(),
-        )
+
+        try:
+            response = runtime.context.gateway.generate_text(
+                model=model_name,
+                contents=[summariser_prompt, compiled_parts],
+                config=build_base_generation_config(),
+            )
+        except Exception as exc:
+            logger.error(
+                "graph.node.failed",
+                node_name=node_name,
+                section=None,
+                attempt=1,
+                failure_stage="llm_summary_generation",
+                model_name=model_name,
+                exception_type=type(exc).__name__,
+                exception_message=str(exc),
+                section_doc_count=len(docs_by_section),
+                ordered_section_doc_count=len(ordered_section_docs),
+                compiled_doc_chars=len(compiled_parts),
+                summariser_prompt_chars=len(summariser_prompt),
+                exc_info=True,
+            )
+
+            emit_graph_status(
+                name="summary",
+                state=SectionState.FAILED,
+                attempts=1,
+                issues=(
+                    StatusIssue(
+                        message=str(exc),
+                        severity=IssueSeverity.ERROR,
+                        code=type(exc).__name__,
+                        source="llm_gateway",
+                    ),
+                ),
+            )
+            raise
 
         logger.info(
             "graph.summary.generated",

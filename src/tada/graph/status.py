@@ -18,7 +18,7 @@ class SectionState(StrEnum):
     EVALUATING = "evaluating"
     RETRYING = "retrying"
     SKIPPED = "skipped"
-    FAILED = "failed"  # Currently unused but may help when catching other exceptions
+    FAILED = "failed"
     REACHED_RETRY_LIMIT = "reached_retry_limit"
     DONE = "done"
 
@@ -63,18 +63,14 @@ class Status:
 class StatusUpdate:
     state: SectionState | None = None
     attempts: int | None = None
-
-    # None = preserve existing issues
-    # () = clear issues
-    # (...) = replace issues
     issues: tuple[StatusIssue, ...] | None = None
+    llm_usage: LLMUsage | None = None
 
-    llm_usage_delta: LLMUsage | None = None
 
-
+# TODO: add graph name?
 @dataclass(frozen=True)
 class GraphStatusEvent:
-    name: str
+    section_name: str
     update: StatusUpdate
 
 
@@ -83,8 +79,8 @@ class GraphStatusStore:
     sections: dict[str, Status] = field(default_factory=dict)
 
     def apply(self, event: GraphStatusEvent) -> None:
-        current = self.sections.get(event.name)
-        self.sections[event.name] = self._merge_status(current, event.update)
+        current = self.sections.get(event.section_name)
+        self.sections[event.section_name] = self._merge_status(current, event.update)
 
     def _merge_status(
         self,
@@ -99,8 +95,8 @@ class GraphStatusStore:
         )
         updated_issues = update.issues if update.issues is not None else current.issues
         updated_llm_usage = (
-            (current.llm_usage + update.llm_usage_delta)
-            if update.llm_usage_delta
+            (current.llm_usage + update.llm_usage)
+            if update.llm_usage
             else current.llm_usage
         )
 

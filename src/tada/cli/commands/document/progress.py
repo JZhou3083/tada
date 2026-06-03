@@ -10,7 +10,7 @@ from tada.cli.display.documentation_progress import (
     DocumentationProgressDisplay,
     RichDocumentationProgressSink,
 )
-from tada.graph.events import GraphStatusStore
+from tada.graph.status import GraphStatusStore
 
 
 def run_document_with_progress(

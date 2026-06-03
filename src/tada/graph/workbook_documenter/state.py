@@ -6,10 +6,15 @@ from tada.domain.workbook import Workbook
 from tada.graph.schemas import LLMCallEvent
 
 
-def merge_dicts(a: dict, b: dict) -> dict:
+def merge_section_docs(
+    a: dict[WorkbookSection, str],
+    b: dict[WorkbookSection, str],
+) -> dict[WorkbookSection, str]:
     overlap = set(a).intersection(b)
     if overlap:
-        raise ValueError(f"Duplicate keys: {overlap}")
+        raise ValueError(
+            f"Duplicate section docs for: {', '.join(section.value for section in overlap)}"
+        )
     return a | b
 
 
@@ -27,5 +32,5 @@ class WorkbookDocumenterOutput(TypedDict):
 class WorkbookDocumenterState(WorkbookDocumenterInput, WorkbookDocumenterOutput):
     docs_by_section: Annotated[
         dict[WorkbookSection, str],
-        merge_dicts,
+        merge_section_docs,
     ]

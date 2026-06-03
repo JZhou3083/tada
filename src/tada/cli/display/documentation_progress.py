@@ -16,7 +16,7 @@ from rich.text import Text
 
 from tada.application.ports import StatusSink
 from tada.cli.display.theme import ISSUE_SEVERITY_STYLE, SECTION_STATE_STYLE
-from tada.graph.events import (
+from tada.graph.status import (
     SECTION_COMPLETE_STATES,
     GraphStatusEvent,
     GraphStatusStore,

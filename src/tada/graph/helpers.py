@@ -2,7 +2,7 @@ from decimal import Decimal
 
 from langgraph.config import get_stream_writer
 
-from tada.graph.events import (
+from tada.graph.status import (
     GraphStatusEvent,
     LLMUsage,
     SectionState,
@@ -56,12 +56,12 @@ def emit_graph_status(
 
     writer(
         GraphStatusEvent(
-            name=name,
+            section_name=name,
             update=StatusUpdate(
                 state=state,
                 attempts=attempts,
                 issues=issues,
-                llm_usage_delta=llm_usage_from_metadata(llm_response_metadata),
+                llm_usage=llm_usage_from_metadata(llm_response_metadata),
             ),
         )
     )

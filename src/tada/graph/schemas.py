@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from tada.llm.gateway import ResponseMetadata
 
 
+# TODO: same here to add graph_name?
 @dataclass(frozen=True)
 class LLMCallEvent:
     node_name: str

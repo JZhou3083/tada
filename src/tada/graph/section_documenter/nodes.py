@@ -6,12 +6,6 @@ import structlog
 from langgraph.runtime import Runtime
 from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 
-from tada.graph.events import (
-    IssueSeverity,
-    SectionState,
-    StatusIssue,
-    issues_from_eval_result,
-)
 from tada.graph.helpers import emit_graph_status
 from tada.graph.schemas import LLMCallEvent
 from tada.graph.section_documenter.context import SectionDocumenterContext
@@ -23,6 +17,12 @@ from tada.graph.section_documenter.state import (
     SectionDocumenterInput,
     SectionDocumenterState,
     get_latest_eval_result,
+)
+from tada.graph.status import (
+    IssueSeverity,
+    SectionState,
+    StatusIssue,
+    issues_from_eval_result,
 )
 from tada.llm.configs import build_base_generation_config
 from tada.llm.schemas import EvalResult
@@ -87,12 +87,13 @@ def prepare_section(state: SectionDocumenterInput) -> dict[str, Any]:
 def generate_section_documentation(
     state: SectionDocumenterState, runtime: Runtime[SectionDocumenterContext]
 ) -> dict[str, Any]:
+    node_name = "generate_section_documentation"
     section = state["section"].value
     attempt = state["generation_attempts"] + 1
 
     logger.info(
         "graph.node.started",
-        node_name="generate_section_documentation",
+        node_name=node_name,
         section=section,
         attempt=attempt,
         has_evaluation_history="evaluation_history" in state,
@@ -113,13 +114,55 @@ def generate_section_documentation(
 
     system_instruction = load_prompt("system.md")
 
-    response = runtime.context.gateway.generate_text(
-        model=runtime.context.section_settings.documentation_model,
-        contents=[full_prompt, state["response_template"], json.dumps(state["data"])],
-        config=build_base_generation_config(
-            system_instruction=system_instruction,
-        ),
+    model_name = runtime.context.section_settings.documentation_model
+    payload_json = json.dumps(
+        state["data"],
+        ensure_ascii=False,  # Prefer human and LLM-readable unicode over ascii
+        sort_keys=True,  # Sort keys for reproducibility
     )
+
+    try:
+        response = runtime.context.gateway.generate_text(
+            model=model_name,
+            contents=[
+                full_prompt,
+                state["response_template"],
+                payload_json,
+            ],
+            config=build_base_generation_config(
+                system_instruction=system_instruction,
+            ),
+        )
+    except Exception as exc:
+        logger.error(
+            "graph.node.failed",
+            node_name=node_name,
+            section=section,
+            attempt=attempt,
+            failure_stage="llm_generation",
+            model_name=model_name,
+            exception_type=type(exc).__name__,
+            exception_message=str(exc),
+            payload_chars=len(payload_json),
+            prompt_chars=len(full_prompt),
+            response_template_chars=len(state["response_template"]),
+            has_evaluation_history="evaluation_history" in state,
+            exc_info=True,
+        )
+
+        emit_graph_status(
+            name=state["section"].value,
+            state=SectionState.FAILED,
+            issues=(
+                StatusIssue(
+                    message=str(exc),
+                    severity=IssueSeverity.ERROR,
+                    code=type(exc).__name__,
+                    source="llm_gateway",
+                ),
+            ),
+        )
+        raise
 
     # Update the live token & cost tracking display
     emit_graph_status(
@@ -129,7 +172,7 @@ def generate_section_documentation(
 
     logger.info(
         "graph.node.completed",
-        node_name="generate_section_documentation",
+        node_name=node_name,
         section=section,
         attempt=attempt,
         model_name=response.metadata.model_name,
@@ -144,7 +187,7 @@ def generate_section_documentation(
         "generation_attempts": attempt,
         "llm_calls": [
             LLMCallEvent(
-                node_name="generate_section_documentation",
+                node_name=node_name,
                 metadata=response.metadata,
                 section_subgraph=state["section"].value,
                 section_attempt=attempt,
@@ -162,12 +205,13 @@ def generate_section_documentation(
 def evaluate_section_documentation(
     state: SectionDocumenterState, runtime: Runtime[SectionDocumenterContext]
 ) -> dict[str, Any]:
+    node_name = "evaluate_section_documentation"
     section = state["section"].value
     attempt = state.get("generation_attempts")
 
     logger.info(
         "graph.node.started",
-        node_name="evaluate_section_documentation",
+        node_name=node_name,
         section=section,
         attempt=attempt,
         has_generated_doc="generated_section_doc" in state,
@@ -182,7 +226,7 @@ def evaluate_section_documentation(
     if "generated_section_doc" not in state:
         logger.error(
             "graph.node.validation_failed",
-            node_name="evaluate_section_documentation",
+            node_name=node_name,
             section=section,
             attempt=attempt,
             missing_field="generated_section_doc",
@@ -191,17 +235,56 @@ def evaluate_section_documentation(
 
     evaluator_prompt = load_prompt("evaluation.md")
 
-    evaluation_response = runtime.context.gateway.generate_structured_response(
-        model=runtime.context.section_settings.evaluation_model,
-        contents=[
-            evaluator_prompt,
-            json.dumps(state["data"]),
-            state["generated_section_doc"],
-            state["response_template"],
-        ],
-        schema_model=EvalResult,
-        config=build_base_generation_config(),
+    model_name = runtime.context.section_settings.evaluation_model
+    payload_json = json.dumps(
+        state["data"],
+        ensure_ascii=False,
+        sort_keys=True,
     )
+
+    try:
+        evaluation_response = runtime.context.gateway.generate_structured_response(
+            model=model_name,
+            contents=[
+                evaluator_prompt,
+                payload_json,
+                state["generated_section_doc"],
+                state["response_template"],
+            ],
+            schema_model=EvalResult,
+            config=build_base_generation_config(),
+        )
+    except Exception as exc:
+        logger.error(
+            "graph.node.failed",
+            node_name="evaluate_section_documentation",
+            section=section,
+            attempt=attempt,
+            failure_stage="llm_evaluation",
+            model_name=model_name,
+            exception_type=type(exc).__name__,
+            exception_message=str(exc),
+            payload_chars=len(payload_json),
+            generated_doc_chars=len(state.get("generated_section_doc", "")),
+            response_template_chars=len(state["response_template"]),
+            schema_model="EvalResult",
+            exc_info=True,
+        )
+
+        emit_graph_status(
+            name=state["section"].value,
+            state=SectionState.FAILED,
+            attempts=state["generation_attempts"],
+            issues=(
+                StatusIssue(
+                    message=str(exc),
+                    severity=IssueSeverity.ERROR,
+                    code=type(exc).__name__,
+                    source="llm_gateway",
+                ),
+            ),
+        )
+        raise
 
     issues = issues_from_eval_result(evaluation_response.content)
 

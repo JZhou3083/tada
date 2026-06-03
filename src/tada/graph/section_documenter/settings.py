@@ -8,6 +8,7 @@ class SectionDocumenterSettings:
     max_documentation_retries: int
 
 
+# TODO: move settings configuration to pydantic-settings
 def default_section_documenter_settings() -> SectionDocumenterSettings:
     return SectionDocumenterSettings(
         documentation_model="gemini-3-flash-preview",

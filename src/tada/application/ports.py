@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from tada.graph.events import GraphStatusEvent
+from tada.graph.status import GraphStatusEvent
 
 
 class StatusSink(Protocol):
