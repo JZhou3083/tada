@@ -1,31 +1,26 @@
 from dataclasses import dataclass
 
-from tada.llm.gateway import VertexAIGateway
-
-MAX_SECTION_ATTEMPTS = 2
-
-AI_NOTICE = """> **AI-generated documentation notice**
->
-> This documentation was generated with the assistance of an AI system using Tableau workbook metadata.
-> It reflects the structure and logic present in the source file at the time of generation and does not validate business intent, analytical correctness, or data quality.
-> Dashboard owners remain responsible for review and approval.
-"""
-
-
-@dataclass(frozen=True)
-class SectionDocumenterConfig:
-    max_section_attempts: int
-    generation_model: str
-    evaluation_model: str
-
-
-@dataclass(frozen=True)
-class WorkbookDocumenterConfig:
-    section_config: SectionDocumenterConfig
-    summary_model: str
-    run_summary_step: bool
+from tada.graph.section_documenter.settings import (
+    SectionDocumenterSettings,
+    default_section_documenter_settings,
+)
+from tada.graph.workbook_documenter.settings import (
+    WorkbookDocumenterSettings,
+    default_workbook_documenter_settings,
+)
+from tada.llm.gateway import VertexAIGateway, get_vertexai_gateway
 
 
 @dataclass
 class GraphContext:
     gateway: VertexAIGateway
+    section_settings: SectionDocumenterSettings
+    workbook_settings: WorkbookDocumenterSettings | None = None
+
+
+def default_graph_context() -> GraphContext:
+    return GraphContext(
+        gateway=get_vertexai_gateway(),
+        section_settings=default_section_documenter_settings(),
+        workbook_settings=default_workbook_documenter_settings(),
+    )

@@ -9,14 +9,14 @@ from tada.graph.schemas import LLMCallEvent
 def merge_dicts(a: dict, b: dict) -> dict:
     overlap = set(a).intersection(b)
     if overlap:
-        raise ValueError(f"Duplicate docs_by_section keys: {overlap}")
+        raise ValueError(f"Duplicate keys: {overlap}")
     return a | b
 
 
 class WorkbookDocumenterInput(TypedDict):
     workbook: Workbook
-    generation_plan: list[WorkbookSection]
-    run_summary_step: bool
+    sections_to_document: list[WorkbookSection]
+    include_summary: bool
 
 
 class WorkbookDocumenterOutput(TypedDict):
@@ -25,7 +25,6 @@ class WorkbookDocumenterOutput(TypedDict):
 
 
 class WorkbookDocumenterState(WorkbookDocumenterInput, WorkbookDocumenterOutput):
-    # docs_by_section is an internal field not exposed in either input or output
     docs_by_section: Annotated[
         dict[WorkbookSection, str],
         merge_dicts,
