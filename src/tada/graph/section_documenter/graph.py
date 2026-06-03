@@ -1,4 +1,3 @@
-import logging
 from typing import TypeAlias
 
 from langgraph.checkpoint.base import BaseCheckpointSaver
@@ -24,8 +23,6 @@ from tada.graph.section_documenter.state import (
     SectionDocumenterOutput,
     SectionDocumenterState,
 )
-
-logger = logging.getLogger(__name__)
 
 SectionDocumenterGraph: TypeAlias = CompiledStateGraph[
     SectionDocumenterState,

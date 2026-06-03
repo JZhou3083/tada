@@ -1,6 +1,6 @@
-import logging
 from typing import Literal
 
+import structlog
 from langgraph.runtime import Runtime
 
 from tada.graph.section_documenter.context import SectionDocumenterContext
@@ -9,7 +9,7 @@ from tada.graph.section_documenter.state import (
     get_latest_eval_result,
 )
 
-logger = logging.getLogger(__name__)
+logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
 
 def route_after_precheck(state: SectionDocumenterState) -> Literal["skip", "generate"]:
@@ -23,12 +23,19 @@ def route_evaluation_results(
     if latest_eval is None:
         raise ValueError("No evaluation to route")
 
+    section = state["section"].value
+    attempt = state["generation_attempts"]
+    blocking_issue_count = len(latest_eval.blocking_issues)
+    non_blocking_issue_count = len(latest_eval.non_blocking_issues)
+
     if latest_eval.passed:
         logger.debug(
-            "Emitting documentation for %s attempt=%d non_blocking_issues=%d",
-            state["section"].value,
-            state["generation_attempts"],
-            len(latest_eval.non_blocking_issues),
+            "graph.edge.traversed",
+            edge_name="route_evaluation_results",
+            section=section,
+            attempt=attempt,
+            next_node="emit",
+            non_blocking_issue_count=non_blocking_issue_count,
         )
         return "emit"
 
@@ -37,19 +44,24 @@ def route_evaluation_results(
         > runtime.context.section_settings.max_documentation_retries
     ):
         logger.debug(
-            "Hit maximum attempts for %s attempt=%d blocking_issues=%d non_blocking_issues=%d",
-            state["section"].value,
-            state["generation_attempts"],
-            len(latest_eval.blocking_issues),
-            len(latest_eval.non_blocking_issues),
+            "graph.edge.traversed",
+            edge_name="route_evaluation_results",
+            section=section,
+            attempt=attempt,
+            max_documentation_retries=runtime.context.section_settings.max_documentation_retries,
+            next_node="emit_with_issues",
+            blocking_issue_count=blocking_issue_count,
+            non_blocking_issue_count=non_blocking_issue_count,
         )
         return "emit_with_issues"
 
     logger.debug(
-        "Retrying documentation for %s attempt=%d blocking_issues=%d non_blocking_issues=%d",
-        state["section"].value,
-        state["generation_attempts"],
-        len(latest_eval.blocking_issues),
-        len(latest_eval.non_blocking_issues),
+        "graph.edge.traversed",
+        edge_name="route_evaluation_results",
+        section=section,
+        attempt=attempt,
+        next_node="retry",
+        blocking_issue_count=blocking_issue_count,
+        non_blocking_issue_count=non_blocking_issue_count,
     )
     return "retry"

@@ -1,3 +1,4 @@
+import structlog
 from langgraph.types import Send
 
 from tada.domain.sections import WorkbookSection
@@ -7,6 +8,8 @@ from tada.graph.workbook_documenter.state import (
     WorkbookDocumenterInput,
 )
 from tada.prompts.loader import load_section_documentation_prompts
+
+logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
 
 def _get_section_documenter_payload(section: WorkbookSection, workbook: Workbook):
@@ -20,13 +23,33 @@ def _get_section_documenter_payload(section: WorkbookSection, workbook: Workbook
 
 
 def route_plan_to_documenters(state: WorkbookDocumenterInput) -> list[Send]:
-    if not state["sections_to_document"]:
+    planned_sections = state["sections_to_document"]
+
+    if not planned_sections:
+        logger.error(
+            "graph.node.failed",
+            node_name="route_plan_to_documenters",
+            error_type="ValueError",
+            error="sections_to_document must contain at least one WorkbookSection",
+        )
         raise ValueError(
             "sections_to_document must contain at least one WorkbookSection"
         )
 
     # De-duplicate plan whilst preserving order
     sections = list(dict.fromkeys(state["sections_to_document"]))
+
+    logger.debug(
+        "graph.edge.traversed",
+        edge_name="route_plan_to_documenters",
+        source_node="plan",
+        target_node=WorkbookNodeId.DOCUMENT_SECTION.value,
+        section_count=len(planned_sections),
+        deduplicated_section_count=len(sections),
+        duplicate_section_count=len(planned_sections) - len(sections),
+        sections=[section.value for section in sections],
+    )
+
     return [
         Send(
             WorkbookNodeId.DOCUMENT_SECTION.value,
