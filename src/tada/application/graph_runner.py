@@ -3,9 +3,9 @@ from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttribu
 from opentelemetry import trace
 
 from tada.application.ports import StatusSink
-from tada.graph.config import GraphContext
 from tada.graph.events import GraphStatusEvent
 from tada.graph.workbook_documenter import (
+    WorkbookDocumenterContext,
     WorkbookDocumenterGraph,
     WorkbookDocumenterInput,
     WorkbookDocumenterOutput,
@@ -18,7 +18,7 @@ def run_workbook_documenter_graph_with_status(
     *,
     graph: WorkbookDocumenterGraph,
     input: WorkbookDocumenterInput,
-    context: GraphContext,
+    context: WorkbookDocumenterContext,
     status_sink: StatusSink,
     config: RunnableConfig | None = None,
 ) -> WorkbookDocumenterOutput:
