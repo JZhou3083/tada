@@ -3,13 +3,18 @@ from typing import Literal
 import structlog
 from langgraph.runtime import Runtime
 
+from tada.graph.ids import GraphName
 from tada.graph.section_documenter.context import SectionDocumenterContext
 from tada.graph.section_documenter.state import (
     SectionDocumenterState,
     get_latest_eval_result,
 )
 
-logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
+_GRAPH_NAME = GraphName.SECTION_DOCUMENTER.value
+
+logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__).bind(
+    graph_name=_GRAPH_NAME
+)
 
 
 def route_after_precheck(state: SectionDocumenterState) -> Literal["skip", "generate"]:

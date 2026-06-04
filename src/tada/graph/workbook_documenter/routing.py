@@ -3,13 +3,18 @@ from langgraph.types import Send
 
 from tada.domain.sections import WorkbookSection
 from tada.domain.workbook import Workbook
+from tada.graph.ids import GraphName
 from tada.graph.workbook_documenter.ids import WorkbookNodeId
 from tada.graph.workbook_documenter.state import (
     WorkbookDocumenterInput,
 )
 from tada.prompts.loader import load_section_documentation_prompts
 
-logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
+_GRAPH_NAME = GraphName.WORKBOOK_DOCUMENTER.value
+
+logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__).bind(
+    graph_name=_GRAPH_NAME
+)
 
 
 def _get_section_documenter_payload(section: WorkbookSection, workbook: Workbook):
