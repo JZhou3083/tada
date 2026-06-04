@@ -1,13 +1,10 @@
-from dataclasses import dataclass
+from pydantic import BaseModel, ConfigDict, Field
 
 
-@dataclass(frozen=True)
-class WorkbookDocumenterSettings:
-    summary_model: str
+class WorkbookDocumenterSettings(BaseModel):
+    model_config = ConfigDict(frozen=True)
 
-
-# TODO: move settings configuration to pydantic-settings
-def default_workbook_documenter_settings() -> WorkbookDocumenterSettings:
-    return WorkbookDocumenterSettings(
-        summary_model="gemini-3-flash-preview",
+    summary_model: str = Field(
+        default="gemini-3-flash-preview",
+        description="Model used to generate the workbook-level summary.",
     )

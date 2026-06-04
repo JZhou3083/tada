@@ -2,8 +2,22 @@ from functools import lru_cache
 from pathlib import Path
 
 from platformdirs import user_state_dir
-from pydantic import Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from tada.graph.section_documenter.settings import SectionDocumenterSettings
+from tada.graph.workbook_documenter.settings import WorkbookDocumenterSettings
+
+
+class GraphSettings(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    section_documenter: SectionDocumenterSettings = Field(
+        default_factory=SectionDocumenterSettings
+    )
+    workbook_documenter: WorkbookDocumenterSettings = Field(
+        default_factory=WorkbookDocumenterSettings
+    )
 
 
 class TadaSettings(BaseSettings):
@@ -37,6 +51,8 @@ class TadaSettings(BaseSettings):
             "The Google Cloud region/location (e.g., 'us-central1') used for the GenAI SDK client."
         ),
     )
+
+    graph: GraphSettings = Field(default_factory=GraphSettings)
 
     @field_validator("state_dir")
     @classmethod

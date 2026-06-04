@@ -1,17 +1,23 @@
-from dataclasses import dataclass
+from pydantic import BaseModel, ConfigDict, Field
 
 
-@dataclass(frozen=True)
-class SectionDocumenterSettings:
-    documentation_model: str
-    evaluation_model: str
-    max_documentation_retries: int
+class SectionDocumenterSettings(BaseModel):
+    model_config = ConfigDict(frozen=True)
 
-
-# TODO: move settings configuration to pydantic-settings
-def default_section_documenter_settings() -> SectionDocumenterSettings:
-    return SectionDocumenterSettings(
-        documentation_model="gemini-3-flash-preview",
-        evaluation_model="gemini-3-flash-preview",
-        max_documentation_retries=2,
+    documentation_model: str = Field(
+        default="gemini-3-flash-preview",
+        description="Model used to generate section documentation.",
+    )
+    evaluation_model: str = Field(
+        default="gemini-3-flash-preview",
+        description="Model used to evaluate generated section documentation.",
+    )
+    max_documentation_retries: int = Field(
+        default=2,
+        ge=0,
+        le=4,  # Reasonable top-limit for retries
+        description=(
+            "Maximum number of retries after the initial documentation attempt. "
+            "A value of 2 allows up to 3 total generation attempts."
+        ),
     )
