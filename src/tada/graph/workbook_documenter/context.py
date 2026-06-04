@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+from tada.graph.context import BaseDocumenterContext
 from tada.graph.section_documenter.settings import (
     SectionDocumenterSettings,
     default_section_documenter_settings,
@@ -12,9 +13,7 @@ from tada.llm.gateway import VertexAIGateway
 
 
 @dataclass(frozen=True)
-class WorkbookDocumenterContext:
-    gateway: VertexAIGateway
-    section_settings: SectionDocumenterSettings
+class WorkbookDocumenterContext(BaseDocumenterContext):
     workbook_settings: WorkbookDocumenterSettings
 
 
