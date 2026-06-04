@@ -26,7 +26,7 @@ def route_evaluation_results(
 ) -> Literal["emit", "emit_with_issues", "retry"]:
     edge_name = "route_evaluation_results"
     section_name = state["section"].value
-    attempt = state["generation_attempts"]
+    attempt = state["documentation_attempt"]
 
     log = logger.bind(edge_name=edge_name, section_name=section_name, attempt=attempt)
 
@@ -46,7 +46,7 @@ def route_evaluation_results(
         return "emit"
 
     elif (
-        state["generation_attempts"]
+        state["documentation_attempt"]
         > runtime.context.section_settings.max_documentation_retries
     ):
         logger.debug(

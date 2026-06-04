@@ -55,9 +55,6 @@ def prepare_section(state: SectionDocumenterInput) -> dict[str, Any]:
     log.info(
         "graph.node.started",
     )
-
-    updates = {"generation_attempts": 0}
-
     # Skip all LLM generation - directly to emit - if payload is empty
     if not state.get("data"):
         emit_graph_status(
@@ -82,14 +79,14 @@ def prepare_section(state: SectionDocumenterInput) -> dict[str, Any]:
             skip_reason="empty_payload",
         )
 
-        return updates | {"skip_section": True}
+        return {"skip_section": True}
 
     log.info(
         "graph.node.completed",
         skip_section=False,
     )
 
-    return updates | {"skip_section": False}
+    return {"skip_section": False}
 
 
 @observe(
@@ -103,7 +100,7 @@ def generate_section_documentation(
 ) -> dict[str, Any]:
     node_name = SectionNodeId.GENERATE_SECTION_DOCS.value
     section_name = state["section"].value
-    attempt = state["generation_attempts"] + 1
+    attempt = state.get("documentation_attempt", 0) + 1
 
     log = logger.bind(node_name=node_name, section_name=section_name, attempt=attempt)
 
@@ -201,7 +198,7 @@ def generate_section_documentation(
 
     return {
         "generated_section_doc": response.content,
-        "generation_attempts": attempt,
+        "documentation_attempt": attempt,
         "llm_calls": [
             LLMCallRecord(
                 graph_name=_GRAPH_NAME,
@@ -225,7 +222,7 @@ def evaluate_section_documentation(
 ) -> dict[str, Any]:
     node_name = SectionNodeId.EVALUATE_SECTION_DOCS.value
     section_name = state["section"].value
-    attempt = state.get("generation_attempts")
+    attempt = state.get("documentation_attempt")
 
     log = logger.bind(node_name=node_name, section_name=section_name, attempt=attempt)
 
@@ -239,7 +236,7 @@ def evaluate_section_documentation(
             graph_name=_GRAPH_NAME,
             section_name=state["section"].value,
             state=SectionState.EVALUATING,
-            attempt=state["generation_attempts"],
+            attempt=state["documentation_attempt"],
         )
     )
 
@@ -290,7 +287,7 @@ def evaluate_section_documentation(
                 graph_name=_GRAPH_NAME,
                 section_name=state["section"].value,
                 state=SectionState.FAILED,
-                attempt=state["generation_attempts"],
+                attempt=state["documentation_attempt"],
                 issues=(
                     StatusIssue(
                         message=str(exc),
@@ -311,7 +308,7 @@ def evaluate_section_documentation(
             graph_name=_GRAPH_NAME,
             section_name=state["section"].value,
             state=SectionState.EVALUATING,
-            attempt=state["generation_attempts"],
+            attempt=state["documentation_attempt"],
             issues=issues,
             llm_response_metadata=evaluation_response.metadata,
         )
@@ -337,7 +334,7 @@ def evaluate_section_documentation(
                 node_name="evaluate_section_documentation",
                 metadata=evaluation_response.metadata,
                 section_name=state["section"].value,
-                attempt=state["generation_attempts"],
+                attempt=state["documentation_attempt"],
             )
         ],
     }
@@ -355,7 +352,7 @@ def _emit_section_documentation_generic(
     node_name = node_id.value
     section = state["section"]
     section_name = section.value
-    attempt = state["generation_attempts"]
+    attempt = state["documentation_attempt"]
 
     log = logger.bind(node_name=node_name, section_name=section_name, attempt=attempt)
 

@@ -21,7 +21,7 @@ class SectionDocumenterOutput(TypedDict):
 
 class SectionDocumenterState(SectionDocumenterInput, SectionDocumenterOutput):
     skip_section: bool
-    generation_attempts: int
+    documentation_attempt: int
     generated_section_doc: str
     evaluation_history: Annotated[list[EvalResult], operator.add]
 
