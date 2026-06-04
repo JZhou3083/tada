@@ -108,11 +108,12 @@ def generate_section_documentation(
 
     log.info("graph.node.started")
 
+    status_state = SectionState.RETRYING if attempt > 1 else SectionState.GENERATING
     emit_graph_status(
         StatusEmitRequest(
             graph_name=_GRAPH_NAME,
             section_name=state["section"].value,
-            state=SectionState.GENERATING,
+            state=status_state,
             attempt=attempt,
         )
     )
