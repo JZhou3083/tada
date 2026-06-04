@@ -321,7 +321,7 @@ def evaluate_section_documentation(
         "llm_calls": [
             LLMCallRecord(
                 graph_name=_GRAPH_NAME,
-                node_name="evaluate_section_documentation",
+                node_name=node_name,
                 metadata=evaluation_response.metadata,
                 section_name=state["section"].value,
                 attempt=require_documentation_attempt(state),
