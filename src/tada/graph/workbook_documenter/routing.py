@@ -5,6 +5,7 @@ from tada.domain.sections import WorkbookSection
 from tada.domain.workbook import Workbook
 from tada.graph.ids import GraphName
 from tada.graph.workbook_documenter.ids import WorkbookNodeId
+from tada.graph.workbook_documenter.payload import normalise_llm_payload
 from tada.graph.workbook_documenter.state import (
     WorkbookDocumenterInput,
 )
@@ -19,9 +20,11 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__).bind(
 
 def _get_section_documenter_payload(section: WorkbookSection, workbook: Workbook):
     prompt, response_template = load_section_documentation_prompts(section)
+    raw_data = section.fetch_from(workbook)
+
     return {
         "section": section,
-        "data": section.fetch_from(workbook),
+        "data": normalise_llm_payload(raw_data),
         "prompt": prompt,
         "response_template": response_template,
     }
