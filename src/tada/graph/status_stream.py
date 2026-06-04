@@ -54,6 +54,26 @@ def emit_graph_status(request: StatusEmitRequest) -> None:
     )
 
 
+def _llm_usage_from_metadata(
+    metadata: ResponseMetadata | None,
+) -> LLMUsage | None:
+    if metadata is None:
+        return None
+
+    total_tokens = metadata.total_tokens if metadata.total_tokens is not None else 0
+
+    total_cost_usd = (
+        metadata.cost.total_cost_usd
+        if isinstance(metadata.cost, CostSuccess)
+        else Decimal("0")
+    )
+
+    return LLMUsage(
+        total_tokens=total_tokens,
+        total_cost_usd=total_cost_usd,
+    )
+
+
 def issues_from_eval_result(eval_result: EvalResult) -> tuple[StatusIssue, ...]:
     issues: list[StatusIssue] = []
 
@@ -78,23 +98,3 @@ def issues_from_eval_result(eval_result: EvalResult) -> tuple[StatusIssue, ...]:
         )
 
     return tuple(issues)
-
-
-def _llm_usage_from_metadata(
-    metadata: ResponseMetadata | None,
-) -> LLMUsage | None:
-    if metadata is None:
-        return None
-
-    total_tokens = metadata.total_tokens if metadata.total_tokens is not None else 0
-
-    total_cost_usd = (
-        metadata.cost.total_cost_usd
-        if isinstance(metadata.cost, CostSuccess)
-        else Decimal("0")
-    )
-
-    return LLMUsage(
-        total_tokens=total_tokens,
-        total_cost_usd=total_cost_usd,
-    )

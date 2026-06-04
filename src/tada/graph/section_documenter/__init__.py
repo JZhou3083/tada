@@ -8,12 +8,10 @@ from tada.graph.section_documenter.graph import (
 )
 from tada.graph.section_documenter.settings import (
     SectionDocumenterSettings,
-    default_section_documenter_settings,
 )
 from tada.graph.section_documenter.state import (
     SectionDocumenterInput,
     SectionDocumenterOutput,
-    SectionDocumenterState,
 )
 
 __all__ = [
@@ -23,7 +21,5 @@ __all__ = [
     "SectionDocumenterGraph",
     "SectionDocumenterInput",
     "SectionDocumenterOutput",
-    "SectionDocumenterState",
     "SectionDocumenterSettings",
-    "default_section_documenter_settings",
 ]

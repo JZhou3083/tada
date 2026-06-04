@@ -21,14 +21,6 @@ class SectionState(StrEnum):
     DONE = "done"
 
 
-SECTION_COMPLETE_STATES = {
-    SectionState.DONE,
-    SectionState.FAILED,
-    SectionState.REACHED_RETRY_LIMIT,
-    SectionState.SKIPPED,
-}
-
-
 @dataclass(frozen=True)
 class StatusIssue:
     message: str

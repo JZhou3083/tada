@@ -17,18 +17,25 @@ from rich.text import Text
 from tada.application.ports import StatusSink
 from tada.cli.display.theme import ISSUE_SEVERITY_STYLE, SECTION_STATE_STYLE
 from tada.graph.status import (
-    SECTION_COMPLETE_STATES,
     GraphStatusEvent,
     GraphStatusStore,
     IssueSeverity,
     LLMUsage,
+    SectionState,
     Status,
     StatusIssue,
 )
 
-PROGRESS_SECTION_TITLE = "Documentation Progress"
-PROGRESS_RUNNING_TEXT = "Documenting workbook..."
-ISSUES_SECTION_TITLE = "Issues"
+_PROGRESS_SECTION_TITLE = "Documentation Progress"
+_PROGRESS_RUNNING_TEXT = "Documenting workbook..."
+_ISSUES_SECTION_TITLE = "Issues"
+
+_SECTION_COMPLETE_STATES = {
+    SectionState.DONE,
+    SectionState.FAILED,
+    SectionState.REACHED_RETRY_LIMIT,
+    SectionState.SKIPPED,
+}
 
 
 class DocumentationProgressDisplay:
@@ -40,7 +47,7 @@ class DocumentationProgressDisplay:
             TimeElapsedColumn(),
         )
         self.section_task_id = self.section_progress.add_task(
-            PROGRESS_RUNNING_TEXT,
+            _PROGRESS_RUNNING_TEXT,
             total=total_sections,
         )
 
@@ -48,7 +55,7 @@ class DocumentationProgressDisplay:
         self._sync_progress(store)
 
         items = [
-            Rule(PROGRESS_SECTION_TITLE, style="bold blue"),
+            Rule(_PROGRESS_SECTION_TITLE, style="bold blue"),
             self._build_sections_table(store),
             Text(""),
             self.section_progress,
@@ -59,7 +66,7 @@ class DocumentationProgressDisplay:
             items.extend(
                 [
                     Text(""),
-                    Rule(ISSUES_SECTION_TITLE, style="bold yellow"),
+                    Rule(_ISSUES_SECTION_TITLE, style="bold yellow"),
                     issues_table,
                 ]
             )
@@ -199,7 +206,7 @@ class DocumentationProgressDisplay:
         completed_sections = sum(
             1
             for status in store.sections.values()
-            if status.state in SECTION_COMPLETE_STATES
+            if status.state in _SECTION_COMPLETE_STATES
         )
 
         self.section_progress.update(

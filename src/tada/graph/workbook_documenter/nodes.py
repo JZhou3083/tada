@@ -30,7 +30,7 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__).bind(
 )
 
 
-_SECTION_ORDER = [
+_SECTION_ORDER_FOR_SUMMARY_PROMPT = [
     WorkbookSection.DATASOURCES,
     WorkbookSection.CALCULATIONS,
     WorkbookSection.DASHBOARDS,
@@ -66,11 +66,15 @@ def summarize_all_sections_documentation(
 
     # TODO: investigate whether we actually need to pass the summariser all sections
     ordered_section_docs = [
-        docs_by_section[s] for s in _SECTION_ORDER if s in docs_by_section
+        docs_by_section[s]
+        for s in _SECTION_ORDER_FOR_SUMMARY_PROMPT
+        if s in docs_by_section
     ]
 
     # Append any sections without explicit order to the end & log as a warning
-    unordered_sections = [s for s in docs_by_section if s not in _SECTION_ORDER]
+    unordered_sections = [
+        s for s in docs_by_section if s not in _SECTION_ORDER_FOR_SUMMARY_PROMPT
+    ]
     ordered_section_docs.extend(docs_by_section[s] for s in unordered_sections)
     if unordered_sections:
         log.warning(
