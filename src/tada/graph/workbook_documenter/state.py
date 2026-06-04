@@ -3,7 +3,7 @@ from typing import Annotated, TypedDict
 
 from tada.domain.sections import WorkbookSection
 from tada.domain.workbook import Workbook
-from tada.graph.schemas import LLMCallEvent
+from tada.graph.schemas import LLMCallRecord
 
 
 def merge_section_docs(
@@ -26,7 +26,7 @@ class WorkbookDocumenterInput(TypedDict):
 
 class WorkbookDocumenterOutput(TypedDict):
     final_doc: str
-    llm_calls: Annotated[list[LLMCallEvent], operator.add]
+    llm_calls: Annotated[list[LLMCallRecord], operator.add]
 
 
 class WorkbookDocumenterState(WorkbookDocumenterInput, WorkbookDocumenterOutput):

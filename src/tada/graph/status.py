@@ -3,8 +3,6 @@ from decimal import Decimal
 from enum import IntEnum, StrEnum
 from typing import Iterable, Self
 
-from tada.llm.schemas import EvalResult
-
 
 class IssueSeverity(IntEnum):
     INFO = 1
@@ -67,9 +65,9 @@ class StatusUpdate:
     llm_usage: LLMUsage | None = None
 
 
-# TODO: add graph name?
 @dataclass(frozen=True)
 class GraphStatusEvent:
+    graph_name: str
     section_name: str
     update: StatusUpdate
 
@@ -110,29 +108,3 @@ class GraphStatusStore:
     @classmethod
     def from_sections(cls, sections: Iterable[str]) -> Self:
         return cls(sections={s: Status() for s in sections})
-
-
-def issues_from_eval_result(eval_result: EvalResult) -> tuple[StatusIssue, ...]:
-    issues: list[StatusIssue] = []
-
-    for issue in eval_result.blocking_issues:
-        issues.append(
-            StatusIssue(
-                message=issue.item,
-                severity=IssueSeverity.ERROR,
-                code=issue.type,
-                source="eval",
-            )
-        )
-
-    for issue in eval_result.non_blocking_issues:
-        issues.append(
-            StatusIssue(
-                message=issue.item,
-                severity=IssueSeverity.WARNING,
-                code=issue.type,
-                source="eval",
-            )
-        )
-
-    return tuple(issues)

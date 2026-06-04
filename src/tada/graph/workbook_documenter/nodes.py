@@ -3,9 +3,14 @@ from langgraph.runtime import Runtime
 from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 
 from tada.domain.sections import WorkbookSection
-from tada.graph.helpers import emit_graph_status
-from tada.graph.schemas import LLMCallEvent
-from tada.graph.status import IssueSeverity, SectionState, StatusIssue
+from tada.graph.ids import GraphName
+from tada.graph.schemas import LLMCallRecord
+from tada.graph.status import (
+    IssueSeverity,
+    SectionState,
+    StatusIssue,
+)
+from tada.graph.status_stream import StatusEmitRequest, emit_graph_status
 from tada.graph.workbook_documenter.context import WorkbookDocumenterContext
 from tada.graph.workbook_documenter.document_markdown import AI_GENERATED_NOTICE_MD
 from tada.graph.workbook_documenter.state import (
@@ -15,6 +20,13 @@ from tada.graph.workbook_documenter.state import (
 from tada.llm.configs import build_base_generation_config
 from tada.observability.otel.observe import observe
 from tada.prompts import load_prompt
+
+_GRAPH_NAME = GraphName.WORKBOOK_DOCUMENTER.value
+
+logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__).bind(
+    graph_name=_GRAPH_NAME
+)
+
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -57,9 +69,12 @@ def summarize_all_sections_documentation(
     # Skip the summary step if specified in the run config
     if not state["include_summary"]:
         emit_graph_status(
-            name="summary",
-            state=SectionState.SKIPPED,
-            attempts=0,
+            StatusEmitRequest(
+                graph_name=_GRAPH_NAME,
+                section_name="summary",
+                state=SectionState.SKIPPED,
+                attempts=0,
+            )
         )
         logger.info(
             "graph.node.skipped",
@@ -76,17 +91,20 @@ def summarize_all_sections_documentation(
     # specified sections were skipped due to being empty.
     elif not ordered_section_docs:
         emit_graph_status(
-            name="summary",
-            state=SectionState.SKIPPED,
-            attempts=0,
-            issues=(
-                StatusIssue(
-                    "Summary skipped because no section documentation was generated.",
-                    severity=IssueSeverity.INFO,
-                    code="empty-document",
-                    source="graph",
+            StatusEmitRequest(
+                graph_name=_GRAPH_NAME,
+                section_name="summary",
+                state=SectionState.SKIPPED,
+                attempts=0,
+                issues=(
+                    StatusIssue(
+                        "Summary skipped because no section documentation was generated.",
+                        severity=IssueSeverity.INFO,
+                        code="empty-document",
+                        source="graph",
+                    ),
                 ),
-            ),
+            )
         )
         logger.info(
             "graph.node.skipped",
@@ -102,7 +120,14 @@ def summarize_all_sections_documentation(
         ]
 
     else:
-        emit_graph_status(name="summary", state=SectionState.GENERATING, attempts=1)
+        emit_graph_status(
+            StatusEmitRequest(
+                graph_name=_GRAPH_NAME,
+                section_name="summary",
+                state=SectionState.GENERATING,
+                attempts=1,
+            )
+        )
 
         summariser_prompt = load_prompt("summariser.md")
 
@@ -133,17 +158,20 @@ def summarize_all_sections_documentation(
             )
 
             emit_graph_status(
-                name="summary",
-                state=SectionState.FAILED,
-                attempts=1,
-                issues=(
-                    StatusIssue(
-                        message=str(exc),
-                        severity=IssueSeverity.ERROR,
-                        code=type(exc).__name__,
-                        source="llm_gateway",
+                StatusEmitRequest(
+                    graph_name=_GRAPH_NAME,
+                    section_name="summary",
+                    state=SectionState.FAILED,
+                    attempts=1,
+                    issues=(
+                        StatusIssue(
+                            message=str(exc),
+                            severity=IssueSeverity.ERROR,
+                            code=type(exc).__name__,
+                            source="llm_gateway",
+                        ),
                     ),
-                ),
+                )
             )
             raise
 
@@ -159,14 +187,18 @@ def summarize_all_sections_documentation(
 
         # Update live display with token usage and cost info
         emit_graph_status(
-            name="summary",
-            state=SectionState.DONE,
-            llm_response_metadata=response.metadata,
+            StatusEmitRequest(
+                graph_name=_GRAPH_NAME,
+                section_name="summary",
+                state=SectionState.DONE,
+                llm_response_metadata=response.metadata,
+            )
         )
 
         final_doc_parts = [response.content] + ordered_section_docs
         llm_calls_update = [
-            LLMCallEvent(
+            LLMCallRecord(
+                graph_name=_GRAPH_NAME,
                 node_name="summarize_all_sections_documentation",
                 metadata=response.metadata,
             )

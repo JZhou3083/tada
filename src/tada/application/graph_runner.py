@@ -3,7 +3,7 @@ from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttribu
 from opentelemetry import trace
 
 from tada.application.ports import StatusSink
-from tada.graph.events import GraphStatusEvent
+from tada.graph.status import GraphStatusEvent
 from tada.graph.workbook_documenter import (
     WorkbookDocumenterContext,
     WorkbookDocumenterGraph,

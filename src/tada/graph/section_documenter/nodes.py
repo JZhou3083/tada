@@ -6,8 +6,8 @@ import structlog
 from langgraph.runtime import Runtime
 from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 
-from tada.graph.helpers import emit_graph_status
-from tada.graph.schemas import LLMCallEvent
+from tada.graph.ids import GraphName
+from tada.graph.schemas import LLMCallRecord
 from tada.graph.section_documenter.context import SectionDocumenterContext
 from tada.graph.section_documenter.document_markdown import (
     prepend_unresolved_blocking_issues_warning_md,
@@ -22,6 +22,10 @@ from tada.graph.status import (
     IssueSeverity,
     SectionState,
     StatusIssue,
+)
+from tada.graph.status_stream import (
+    StatusEmitRequest,
+    emit_graph_status,
     issues_from_eval_result,
 )
 from tada.llm.configs import build_base_generation_config
@@ -29,7 +33,11 @@ from tada.llm.schemas import EvalResult
 from tada.observability.otel.observe import observe
 from tada.prompts import load_prompt
 
-logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
+_GRAPH_NAME = GraphName.SECTION_DOCUMENTER.value
+
+logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__).bind(
+    graph_name=_GRAPH_NAME
+)
 
 
 def prepare_section(state: SectionDocumenterInput) -> dict[str, Any]:
@@ -46,17 +54,20 @@ def prepare_section(state: SectionDocumenterInput) -> dict[str, Any]:
     # Skip all LLM generation - directly to emit - if payload is empty
     if not state.get("data"):
         emit_graph_status(
-            name=state["section"].value,
-            state=SectionState.SKIPPED,
-            attempts=0,
-            issues=(
-                StatusIssue(
-                    "Generation skipped due to empty data payload.",
-                    severity=IssueSeverity.INFO,
-                    code="empty-payload",
-                    source="graph",
+            StatusEmitRequest(
+                graph_name=_GRAPH_NAME,
+                section_name=state["section"].value,
+                state=SectionState.SKIPPED,
+                attempts=0,
+                issues=(
+                    StatusIssue(
+                        "Generation skipped due to empty data payload.",
+                        severity=IssueSeverity.INFO,
+                        code="empty-payload",
+                        source="graph",
+                    ),
                 ),
-            ),
+            )
         )
 
         logger.info(
@@ -100,9 +111,12 @@ def generate_section_documentation(
     )
 
     emit_graph_status(
-        name=state["section"].value,
-        state=SectionState.GENERATING,
-        attempts=attempt,
+        StatusEmitRequest(
+            graph_name=_GRAPH_NAME,
+            section_name=state["section"].value,
+            state=SectionState.GENERATING,
+            attempts=attempt,
+        )
     )
 
     full_prompt = state["prompt"]
@@ -151,23 +165,29 @@ def generate_section_documentation(
         )
 
         emit_graph_status(
-            name=state["section"].value,
-            state=SectionState.FAILED,
-            issues=(
-                StatusIssue(
-                    message=str(exc),
-                    severity=IssueSeverity.ERROR,
-                    code=type(exc).__name__,
-                    source="llm_gateway",
+            StatusEmitRequest(
+                graph_name=_GRAPH_NAME,
+                section_name=state["section"].value,
+                state=SectionState.FAILED,
+                issues=(
+                    StatusIssue(
+                        message=str(exc),
+                        severity=IssueSeverity.ERROR,
+                        code=type(exc).__name__,
+                        source="llm_gateway",
+                    ),
                 ),
-            ),
+            )
         )
         raise
 
     # Update the live token & cost tracking display
     emit_graph_status(
-        name=state["section"].value,
-        llm_response_metadata=response.metadata,
+        StatusEmitRequest(
+            graph_name=_GRAPH_NAME,
+            section_name=state["section"].value,
+            llm_response_metadata=response.metadata,
+        )
     )
 
     logger.info(
@@ -186,11 +206,12 @@ def generate_section_documentation(
         "generated_section_doc": response.content,
         "generation_attempts": attempt,
         "llm_calls": [
-            LLMCallEvent(
+            LLMCallRecord(
+                graph_name=_GRAPH_NAME,
                 node_name=node_name,
                 metadata=response.metadata,
-                section_subgraph=state["section"].value,
-                section_attempt=attempt,
+                section_name=state["section"].value,
+                attempt=attempt,
             )
         ],
     }
@@ -218,9 +239,12 @@ def evaluate_section_documentation(
     )
 
     emit_graph_status(
-        name=state["section"].value,
-        state=SectionState.EVALUATING,
-        attempts=state["generation_attempts"],
+        StatusEmitRequest(
+            graph_name=_GRAPH_NAME,
+            section_name=state["section"].value,
+            state=SectionState.EVALUATING,
+            attempts=state["generation_attempts"],
+        )
     )
 
     if "generated_section_doc" not in state:
@@ -272,17 +296,20 @@ def evaluate_section_documentation(
         )
 
         emit_graph_status(
-            name=state["section"].value,
-            state=SectionState.FAILED,
-            attempts=state["generation_attempts"],
-            issues=(
-                StatusIssue(
-                    message=str(exc),
-                    severity=IssueSeverity.ERROR,
-                    code=type(exc).__name__,
-                    source="llm_gateway",
+            StatusEmitRequest(
+                graph_name=_GRAPH_NAME,
+                section_name=state["section"].value,
+                state=SectionState.FAILED,
+                attempts=state["generation_attempts"],
+                issues=(
+                    StatusIssue(
+                        message=str(exc),
+                        severity=IssueSeverity.ERROR,
+                        code=type(exc).__name__,
+                        source="llm_gateway",
+                    ),
                 ),
-            ),
+            )
         )
         raise
 
@@ -290,11 +317,14 @@ def evaluate_section_documentation(
 
     # Update graph status with any resulting issues / clear issues if there are none
     emit_graph_status(
-        name=state["section"].value,
-        state=SectionState.EVALUATING,
-        attempts=state["generation_attempts"],
-        issues=issues,
-        llm_response_metadata=evaluation_response.metadata,
+        StatusEmitRequest(
+            graph_name=_GRAPH_NAME,
+            section_name=state["section"].value,
+            state=SectionState.EVALUATING,
+            attempts=state["generation_attempts"],
+            issues=issues,
+            llm_response_metadata=evaluation_response.metadata,
+        )
     )
 
     logger.info(
@@ -315,11 +345,12 @@ def evaluate_section_documentation(
     return {
         "evaluation_history": [evaluation_response.content],
         "llm_calls": [
-            LLMCallEvent(
+            LLMCallRecord(
+                graph_name=_GRAPH_NAME,
                 node_name="evaluate_section_documentation",
                 metadata=evaluation_response.metadata,
-                section_subgraph=state["section"].value,
-                section_attempt=state["generation_attempts"],
+                section_name=state["section"].value,
+                attempt=state["generation_attempts"],
             )
         ],
     }
@@ -349,9 +380,12 @@ def _emit_section_documentation_generic(
     )
 
     emit_graph_status(
-        name=section.value,
-        state=final_state,
-        attempts=attempts,
+        StatusEmitRequest(
+            graph_name=_GRAPH_NAME,
+            section_name=section.value,
+            state=final_state,
+            attempts=attempts,
+        )
     )
 
     if doc is None:

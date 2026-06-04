@@ -2,7 +2,7 @@ import operator
 from typing import Annotated, Any, TypedDict
 
 from tada.domain.sections import WorkbookSection
-from tada.graph.schemas import LLMCallEvent
+from tada.graph.schemas import LLMCallRecord
 from tada.llm.schemas import EvalResult
 
 
@@ -15,7 +15,7 @@ class SectionDocumenterInput(TypedDict):
 
 class SectionDocumenterOutput(TypedDict):
     docs_by_section: dict[WorkbookSection, str]
-    llm_calls: Annotated[list[LLMCallEvent], operator.add]
+    llm_calls: Annotated[list[LLMCallRecord], operator.add]
 
 
 class SectionDocumenterState(SectionDocumenterInput, SectionDocumenterOutput):
