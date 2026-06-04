@@ -1,5 +1,4 @@
 import json
-from functools import partial
 from typing import Any
 
 import structlog
@@ -347,14 +346,15 @@ def evaluate_section_documentation(
 def _emit_section_documentation_generic(
     state: SectionDocumenterState,
     *,
-    final_state: SectionState = SectionState.DONE,
+    node_id: SectionNodeId,
+    final_state: SectionState,
     require_doc: bool = True,
     include_blocking_issues_header: bool = False,
 ) -> dict[str, Any]:
-    """Format results of documentation into a state update to remerge back into the parent branch"""
-    # TODO: emit section generic is necessarily happy path ID, consider retry version etc.
-    node_name = SectionNodeId.EMIT_SECTION_DOCS.value
-    section_name = state["section"].value
+    """Format section documentation into a state update to remerge into the parent branch."""
+    node_name = node_id.value
+    section = state["section"]
+    section_name = section.value
     attempt = state["generation_attempts"]
 
     log = logger.bind(node_name=node_name, section_name=section_name, attempt=attempt)
@@ -421,22 +421,50 @@ def _emit_section_documentation_generic(
         final_state=final_state.value,
     )
 
-    return {"docs_by_section": {state["section"]: doc}}
+    return {"docs_by_section": {section: doc}}
 
 
-emit_section_documentation = partial(
-    _emit_section_documentation_generic,
-    final_state=SectionState.DONE,
+@observe(
+    f"graph.node.{SectionNodeId.EMIT_SECTION_DOCS.value}",
+    attributes={
+        SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN.value,
+    },
 )
+def emit_section_documentation(state: SectionDocumenterState) -> dict[str, Any]:
+    return _emit_section_documentation_generic(
+        state,
+        node_id=SectionNodeId.EMIT_SECTION_DOCS,
+        final_state=SectionState.DONE,
+    )
 
-emit_section_documentation_retry_limit = partial(
-    _emit_section_documentation_generic,
-    final_state=SectionState.REACHED_RETRY_LIMIT,
-    include_blocking_issues_header=True,
-)
 
-emit_section_documentation_skipped = partial(
-    _emit_section_documentation_generic,
-    final_state=SectionState.SKIPPED,
-    require_doc=False,
+@observe(
+    f"graph.node.{SectionNodeId.EMIT_SECTION_DOCS_AFTER_RETRY_LIMIT.value}",
+    attributes={
+        SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN.value,
+    },
 )
+def emit_section_documentation_retry_limit(
+    state: SectionDocumenterState,
+) -> dict[str, Any]:
+    return _emit_section_documentation_generic(
+        state,
+        node_id=SectionNodeId.EMIT_SECTION_DOCS_AFTER_RETRY_LIMIT,
+        final_state=SectionState.REACHED_RETRY_LIMIT,
+        include_blocking_issues_header=True,
+    )
+
+
+@observe(
+    f"graph.node.{SectionNodeId.EMIT_SECTION_DOCS_SKIPPED.value}",
+    attributes={
+        SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN.value,
+    },
+)
+def emit_section_documentation_skipped(state: SectionDocumenterState) -> dict[str, Any]:
+    return _emit_section_documentation_generic(
+        state,
+        node_id=SectionNodeId.EMIT_SECTION_DOCS_SKIPPED,
+        final_state=SectionState.SKIPPED,
+        require_doc=False,
+    )
