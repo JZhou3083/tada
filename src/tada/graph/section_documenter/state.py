@@ -6,6 +6,7 @@ from tada.graph.schemas import LLMCallRecord
 from tada.llm.schemas import EvalResult
 
 
+# TODO: replace section enum with pure string...?
 class SectionDocumenterInput(TypedDict):
     section: WorkbookSection
     data: dict[str, Any]

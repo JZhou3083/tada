@@ -24,21 +24,22 @@ def route_after_precheck(state: SectionDocumenterState) -> Literal["skip", "gene
 def route_evaluation_results(
     state: SectionDocumenterState, runtime: Runtime[SectionDocumenterContext]
 ) -> Literal["emit", "emit_with_issues", "retry"]:
+    edge_name = "route_evaluation_results"
+    section_name = state["section"].value
+    attempt = state["generation_attempts"]
+
+    log = logger.bind(edge_name=edge_name, section_name=section_name, attempt=attempt)
+
     latest_eval = get_latest_eval_result(state)
     if latest_eval is None:
         raise ValueError("No evaluation to route")
 
-    section = state["section"].value
-    attempt = state["generation_attempts"]
     blocking_issue_count = len(latest_eval.blocking_issues)
     non_blocking_issue_count = len(latest_eval.non_blocking_issues)
 
     if latest_eval.passed:
-        logger.debug(
+        log.debug(
             "graph.edge.traversed",
-            edge_name="route_evaluation_results",
-            section=section,
-            attempt=attempt,
             next_node="emit",
             non_blocking_issue_count=non_blocking_issue_count,
         )
@@ -50,9 +51,6 @@ def route_evaluation_results(
     ):
         logger.debug(
             "graph.edge.traversed",
-            edge_name="route_evaluation_results",
-            section=section,
-            attempt=attempt,
             max_documentation_retries=runtime.context.section_settings.max_documentation_retries,
             next_node="emit_with_issues",
             blocking_issue_count=blocking_issue_count,
@@ -62,9 +60,6 @@ def route_evaluation_results(
 
     logger.debug(
         "graph.edge.traversed",
-        edge_name="route_evaluation_results",
-        section=section,
-        attempt=attempt,
         next_node="retry",
         blocking_issue_count=blocking_issue_count,
         non_blocking_issue_count=non_blocking_issue_count,

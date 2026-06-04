@@ -60,7 +60,7 @@ class Status:
 @dataclass(frozen=True)
 class StatusUpdate:
     state: SectionState | None = None
-    attempts: int | None = None
+    attempt: int | None = None
     issues: tuple[StatusIssue, ...] | None = None
     llm_usage: LLMUsage | None = None
 
@@ -89,7 +89,7 @@ class GraphStatusStore:
 
         updated_state = update.state if update.state is not None else current.state
         updated_attempts = (
-            update.attempts if update.attempts is not None else current.attempts
+            update.attempt if update.attempt is not None else current.attempts
         )
         updated_issues = update.issues if update.issues is not None else current.issues
         updated_llm_usage = (

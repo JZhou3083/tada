@@ -21,7 +21,7 @@ class StatusEmitRequest:
     graph_name: str
     section_name: str
     state: SectionState | None = None
-    attempts: int | None = None
+    attempt: int | None = None
     issues: tuple[StatusIssue, ...] | None = None
     llm_response_metadata: ResponseMetadata | None = None
 
@@ -32,7 +32,7 @@ def emit_graph_status(request: StatusEmitRequest) -> None:
 
     Patch semantics:
     - state=None preserves current state
-    - attempts=None preserves current attempts
+    - attempt=None preserves current attempt number
     - issues=None preserves current issues
     - issues=() clears current issues
     - issues=(...) replaces current issues
@@ -46,7 +46,7 @@ def emit_graph_status(request: StatusEmitRequest) -> None:
             section_name=request.section_name,
             update=StatusUpdate(
                 state=request.state,
-                attempts=request.attempts,
+                attempt=request.attempt,
                 issues=request.issues,
                 llm_usage=_llm_usage_from_metadata(request.llm_response_metadata),
             ),

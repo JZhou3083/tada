@@ -13,6 +13,7 @@ from tada.graph.status import (
 from tada.graph.status_stream import StatusEmitRequest, emit_graph_status
 from tada.graph.workbook_documenter.context import WorkbookDocumenterContext
 from tada.graph.workbook_documenter.document_markdown import AI_GENERATED_NOTICE_MD
+from tada.graph.workbook_documenter.ids import WorkbookNodeId
 from tada.graph.workbook_documenter.state import (
     WorkbookDocumenterOutput,
     WorkbookDocumenterState,
@@ -28,8 +29,6 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__).bind(
 )
 
 
-logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
-
 # TODO: investigate whether we actually need to pass the summariser all sections
 SECTION_ORDER = [
     WorkbookSection.DATASOURCES,
@@ -43,7 +42,7 @@ SECTION_ORDER = [
 
 
 @observe(
-    "graph.node.summarize_all_sections_documentation",
+    f"graph.node.{WorkbookNodeId.SUMMARIZE_ALL_SECTION_DOCS.value}",
     attributes={
         SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN.value,
     },
@@ -51,13 +50,16 @@ SECTION_ORDER = [
 def summarize_all_sections_documentation(
     state: WorkbookDocumenterState, runtime: Runtime[WorkbookDocumenterContext]
 ) -> WorkbookDocumenterOutput:
-    node_name = "summarize_all_sections_documentation"
+    node_name = WorkbookNodeId.SUMMARIZE_ALL_SECTION_DOCS.value
+    attempt = 1
+
     docs_by_section = state["docs_by_section"]
     include_summary = state["include_summary"]
 
-    logger.info(
+    log = logger.bind(node_name=node_name, attempt=attempt)
+
+    log.info(
         "graph.node.started",
-        node_name=node_name,
         section_doc_count=len(docs_by_section),
         summary_enabled=include_summary,
     )
@@ -73,12 +75,11 @@ def summarize_all_sections_documentation(
                 graph_name=_GRAPH_NAME,
                 section_name="summary",
                 state=SectionState.SKIPPED,
-                attempts=0,
+                attempt=1,
             )
         )
-        logger.info(
+        log.info(
             "graph.node.skipped",
-            node_name=node_name,
             skipped_step="summary_generation",
             skip_reason="summary_step_disabled",
             section_doc_count=len(docs_by_section),
@@ -95,7 +96,7 @@ def summarize_all_sections_documentation(
                 graph_name=_GRAPH_NAME,
                 section_name="summary",
                 state=SectionState.SKIPPED,
-                attempts=0,
+                attempt=attempt,
                 issues=(
                     StatusIssue(
                         "Summary skipped because no section documentation was generated.",
@@ -106,9 +107,8 @@ def summarize_all_sections_documentation(
                 ),
             )
         )
-        logger.info(
+        log.info(
             "graph.node.skipped",
-            node_name=node_name,
             skipped_step="summary_generation",
             skip_reason="empty_section_docs",
             section_doc_count=len(docs_by_section),
@@ -125,7 +125,7 @@ def summarize_all_sections_documentation(
                 graph_name=_GRAPH_NAME,
                 section_name="summary",
                 state=SectionState.GENERATING,
-                attempts=1,
+                attempt=attempt,
             )
         )
 
@@ -141,11 +141,8 @@ def summarize_all_sections_documentation(
                 config=build_base_generation_config(),
             )
         except Exception as exc:
-            logger.error(
+            log.error(
                 "graph.node.failed",
-                node_name=node_name,
-                section=None,
-                attempt=1,
                 failure_stage="llm_summary_generation",
                 model_name=model_name,
                 exception_type=type(exc).__name__,
@@ -162,7 +159,7 @@ def summarize_all_sections_documentation(
                     graph_name=_GRAPH_NAME,
                     section_name="summary",
                     state=SectionState.FAILED,
-                    attempts=1,
+                    attempt=attempt,
                     issues=(
                         StatusIssue(
                             message=str(exc),
@@ -175,9 +172,8 @@ def summarize_all_sections_documentation(
             )
             raise
 
-        logger.info(
+        log.info(
             "graph.summary.generated",
-            node_name=node_name,
             model_name=response.metadata.model_name,
             elapsed_seconds=response.metadata.elapsed_seconds,
             input_tokens=response.metadata.input_tokens,
@@ -208,9 +204,8 @@ def summarize_all_sections_documentation(
         [p.rstrip() for p in [AI_GENERATED_NOTICE_MD] + final_doc_parts]
     )
 
-    logger.info(
+    log.info(
         "graph.node.completed",
-        node_name=node_name,
         section_doc_count=len(docs_by_section),
         ordered_section_doc_count=len(ordered_section_docs),
         summary_enabled=include_summary,
