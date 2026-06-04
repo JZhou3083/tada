@@ -17,6 +17,7 @@ from tada.graph.workbook_documenter.ids import WorkbookNodeId
 from tada.graph.workbook_documenter.state import (
     WorkbookDocumenterOutput,
     WorkbookDocumenterState,
+    require_docs_by_section,
 )
 from tada.llm.configs import build_base_generation_config
 from tada.observability.otel.observe import observe
@@ -53,7 +54,7 @@ def summarize_all_sections_documentation(
     node_name = WorkbookNodeId.SUMMARIZE_ALL_SECTION_DOCS.value
     attempt = 1
 
-    docs_by_section = state["docs_by_section"]
+    docs_by_section = require_docs_by_section(state)
     include_summary = state["include_summary"]
 
     log = logger.bind(node_name=node_name, attempt=attempt)

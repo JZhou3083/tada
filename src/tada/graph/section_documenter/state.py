@@ -19,11 +19,13 @@ class SectionDocumenterOutput(TypedDict):
     llm_calls: Annotated[list[LLMCallRecord], operator.add]
 
 
-class SectionDocumenterState(SectionDocumenterInput, SectionDocumenterOutput):
+class SectionDocumenterState(SectionDocumenterInput, total=False):
     skip_section: bool
     documentation_attempt: int
     generated_section_doc: str
     evaluation_history: Annotated[list[EvalResult], operator.add]
+    docs_by_section: dict[WorkbookSection, str]
+    llm_calls: Annotated[list[LLMCallRecord], operator.add]
 
 
 def get_latest_eval_result(
@@ -31,3 +33,17 @@ def get_latest_eval_result(
 ) -> EvalResult | None:
     history = state.get("evaluation_history", [])
     return history[-1] if history else None
+
+
+def require_documentation_attempt(state: SectionDocumenterState) -> int:
+    attempt = state.get("documentation_attempt")
+    if attempt is None:
+        raise ValueError("documentation_attempt is required after generation has run")
+    return attempt
+
+
+def require_generated_section_doc(state: SectionDocumenterState) -> str:
+    doc = state.get("generated_section_doc")
+    if doc is None:
+        raise ValueError("generated_section_doc is required after generation has run")
+    return doc

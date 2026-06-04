@@ -29,8 +29,21 @@ class WorkbookDocumenterOutput(TypedDict):
     llm_calls: Annotated[list[LLMCallRecord], operator.add]
 
 
-class WorkbookDocumenterState(WorkbookDocumenterInput, WorkbookDocumenterOutput):
+class WorkbookDocumenterState(WorkbookDocumenterInput, total=False):
     docs_by_section: Annotated[
         dict[WorkbookSection, str],
         merge_section_docs,
     ]
+    final_doc: str
+    llm_calls: Annotated[list[LLMCallRecord], operator.add]
+
+
+def require_docs_by_section(
+    state: WorkbookDocumenterState,
+) -> dict[WorkbookSection, str]:
+    docs = state.get("docs_by_section")
+    if docs is None:
+        raise ValueError(
+            "docs_by_section is required after section documentation has run"
+        )
+    return docs

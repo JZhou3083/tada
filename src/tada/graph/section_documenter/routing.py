@@ -8,6 +8,7 @@ from tada.graph.section_documenter.context import SectionDocumenterContext
 from tada.graph.section_documenter.state import (
     SectionDocumenterState,
     get_latest_eval_result,
+    require_documentation_attempt,
 )
 
 _GRAPH_NAME = GraphName.SECTION_DOCUMENTER.value
@@ -26,7 +27,7 @@ def route_evaluation_results(
 ) -> Literal["emit", "emit_with_issues", "retry"]:
     edge_name = "route_evaluation_results"
     section_name = state["section"].value
-    attempt = state["documentation_attempt"]
+    attempt = require_documentation_attempt(state)
 
     log = logger.bind(edge_name=edge_name, section_name=section_name, attempt=attempt)
 
@@ -46,7 +47,7 @@ def route_evaluation_results(
         return "emit"
 
     elif (
-        state["documentation_attempt"]
+        require_documentation_attempt(state)
         > runtime.context.section_settings.max_documentation_retries
     ):
         logger.debug(

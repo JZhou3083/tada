@@ -17,6 +17,8 @@ from tada.graph.section_documenter.state import (
     SectionDocumenterInput,
     SectionDocumenterState,
     get_latest_eval_result,
+    require_documentation_attempt,
+    require_generated_section_doc,
 )
 from tada.graph.status import (
     IssueSeverity,
@@ -104,11 +106,7 @@ def generate_section_documentation(
 
     log = logger.bind(node_name=node_name, section_name=section_name, attempt=attempt)
 
-    log.info(
-        "graph.node.started",
-        attempt=attempt,
-        has_evaluation_history="evaluation_history" in state,
-    )
+    log.info("graph.node.started")
 
     emit_graph_status(
         StatusEmitRequest(
@@ -226,26 +224,18 @@ def evaluate_section_documentation(
 
     log = logger.bind(node_name=node_name, section_name=section_name, attempt=attempt)
 
-    log.info(
-        "graph.node.started",
-        has_generated_doc="generated_section_doc" in state,
-    )
+    log.info("graph.node.started")
 
     emit_graph_status(
         StatusEmitRequest(
             graph_name=_GRAPH_NAME,
             section_name=state["section"].value,
             state=SectionState.EVALUATING,
-            attempt=state["documentation_attempt"],
+            attempt=require_documentation_attempt(state),
         )
     )
 
-    if "generated_section_doc" not in state:
-        log.error(
-            "graph.node.validation_failed",
-            missing_field="generated_section_doc",
-        )
-        raise ValueError("No documentation exists in state to evaluate")
+    generated_doc = require_generated_section_doc(state)
 
     evaluator_prompt = load_prompt("evaluation.md")
 
@@ -262,7 +252,7 @@ def evaluate_section_documentation(
             contents=[
                 evaluator_prompt,
                 payload_json,
-                state["generated_section_doc"],
+                generated_doc,
                 state["response_template"],
             ],
             schema_model=EvalResult,
@@ -276,7 +266,7 @@ def evaluate_section_documentation(
             exception_type=type(exc).__name__,
             exception_message=str(exc),
             payload_chars=len(payload_json),
-            generated_doc_chars=len(state.get("generated_section_doc", "")),
+            generated_doc_chars=len(generated_doc),
             response_template_chars=len(state["response_template"]),
             schema_model="EvalResult",
             exc_info=True,
@@ -287,7 +277,7 @@ def evaluate_section_documentation(
                 graph_name=_GRAPH_NAME,
                 section_name=state["section"].value,
                 state=SectionState.FAILED,
-                attempt=state["documentation_attempt"],
+                attempt=require_documentation_attempt(state),
                 issues=(
                     StatusIssue(
                         message=str(exc),
@@ -308,7 +298,7 @@ def evaluate_section_documentation(
             graph_name=_GRAPH_NAME,
             section_name=state["section"].value,
             state=SectionState.EVALUATING,
-            attempt=state["documentation_attempt"],
+            attempt=require_documentation_attempt(state),
             issues=issues,
             llm_response_metadata=evaluation_response.metadata,
         )
@@ -334,7 +324,7 @@ def evaluate_section_documentation(
                 node_name="evaluate_section_documentation",
                 metadata=evaluation_response.metadata,
                 section_name=state["section"].value,
-                attempt=state["documentation_attempt"],
+                attempt=require_documentation_attempt(state),
             )
         ],
     }
@@ -352,7 +342,7 @@ def _emit_section_documentation_generic(
     node_name = node_id.value
     section = state["section"]
     section_name = section.value
-    attempt = state["documentation_attempt"]
+    attempt = require_documentation_attempt(state)
 
     log = logger.bind(node_name=node_name, section_name=section_name, attempt=attempt)
 
@@ -393,6 +383,7 @@ def _emit_section_documentation_generic(
 
         return {
             "docs_by_section": {},
+            "llm_calls": [],
         }
 
     if include_blocking_issues_header:
@@ -418,7 +409,7 @@ def _emit_section_documentation_generic(
         final_state=final_state.value,
     )
 
-    return {"docs_by_section": {section: doc}}
+    return {"docs_by_section": {section: doc}, "llm_calls": []}
 
 
 @observe(
