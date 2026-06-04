@@ -3,7 +3,7 @@ from langgraph.runtime import Runtime
 from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 
 from tada.domain.sections import WorkbookSection
-from tada.graph.ids import GraphName
+from tada.graph.ids import GraphId
 from tada.graph.schemas import LLMCallRecord
 from tada.graph.status import (
     IssueSeverity,
@@ -23,7 +23,7 @@ from tada.llm.configs import build_base_generation_config
 from tada.observability.otel.observe import observe
 from tada.prompts import load_prompt
 
-_GRAPH_NAME = GraphName.WORKBOOK_DOCUMENTER.value
+_GRAPH_NAME = GraphId.WORKBOOK_DOCUMENTER.value
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__).bind(
     graph_name=_GRAPH_NAME

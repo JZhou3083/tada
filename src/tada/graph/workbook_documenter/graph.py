@@ -57,7 +57,9 @@ def build_workbook_documenter_graph(
     )
 
     builder.add_conditional_edges(
-        START, route_plan_to_documenters, [WorkbookNodeId.DOCUMENT_SECTION.value]
+        START,
+        route_plan_to_documenters,
+        [WorkbookNodeId.DOCUMENT_SECTION.value],
     )
     builder.add_edge(
         WorkbookNodeId.DOCUMENT_SECTION.value,

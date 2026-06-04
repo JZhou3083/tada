@@ -5,7 +5,7 @@ import structlog
 from langgraph.runtime import Runtime
 from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 
-from tada.graph.ids import GraphName
+from tada.graph.ids import GraphId
 from tada.graph.schemas import LLMCallRecord
 from tada.graph.section_documenter.context import SectionDocumenterContext
 from tada.graph.section_documenter.document_markdown import (
@@ -35,7 +35,7 @@ from tada.llm.schemas import EvalResult
 from tada.observability.otel.observe import observe
 from tada.prompts import load_prompt
 
-_GRAPH_NAME = GraphName.SECTION_DOCUMENTER.value
+_GRAPH_NAME = GraphId.SECTION_DOCUMENTER.value
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__).bind(
     graph_name=_GRAPH_NAME

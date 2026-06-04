@@ -45,10 +45,12 @@ def build_section_documenter_graph(
 
     builder.add_node(SectionNodeId.PREPARE_SECTION.value, prepare_section)
     builder.add_node(
-        SectionNodeId.GENERATE_SECTION_DOCS.value, generate_section_documentation
+        SectionNodeId.GENERATE_SECTION_DOCS.value,
+        generate_section_documentation,
     )
     builder.add_node(
-        SectionNodeId.EVALUATE_SECTION_DOCS.value, evaluate_section_documentation
+        SectionNodeId.EVALUATE_SECTION_DOCS.value,
+        evaluate_section_documentation,
     )
     builder.add_node(SectionNodeId.EMIT_SECTION_DOCS.value, emit_section_documentation)
     builder.add_node(
