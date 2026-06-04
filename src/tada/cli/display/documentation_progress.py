@@ -48,7 +48,7 @@ class DocumentationProgressDisplay:
         self._sync_progress(store)
 
         items = [
-            Rule(PROGRESS_SECTION_TITLE, style="bold blue", align="left"),
+            Rule(PROGRESS_SECTION_TITLE, style="bold blue"),
             self._build_sections_table(store),
             Text(""),
             self.section_progress,
@@ -59,7 +59,7 @@ class DocumentationProgressDisplay:
             items.extend(
                 [
                     Text(""),
-                    Rule(ISSUES_SECTION_TITLE, style="bold yellow", align="left"),
+                    Rule(ISSUES_SECTION_TITLE, style="bold yellow"),
                     issues_table,
                 ]
             )
@@ -100,7 +100,7 @@ class DocumentationProgressDisplay:
             tbl.add_row(
                 sec_name,
                 section_status_element,
-                str(sec_status.attempts) if sec_status.attempts > 0 else "-",
+                str(sec_status.attempt) if sec_status.attempt > 0 else "-",
                 self._format_issue_count(sec_status),
                 token_count_element,
                 total_cost_element,

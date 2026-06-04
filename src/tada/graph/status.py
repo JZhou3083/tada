@@ -52,7 +52,7 @@ class LLMUsage:
 @dataclass(frozen=True)
 class Status:
     state: SectionState = SectionState.PENDING
-    attempts: int = 0
+    attempt: int = 0
     issues: tuple[StatusIssue, ...] = field(default_factory=tuple)
     llm_usage: LLMUsage = field(default_factory=LLMUsage)
 
@@ -89,7 +89,7 @@ class GraphStatusStore:
 
         updated_state = update.state if update.state is not None else current.state
         updated_attempts = (
-            update.attempt if update.attempt is not None else current.attempts
+            update.attempt if update.attempt is not None else current.attempt
         )
         updated_issues = update.issues if update.issues is not None else current.issues
         updated_llm_usage = (
@@ -100,7 +100,7 @@ class GraphStatusStore:
 
         return Status(
             state=updated_state,
-            attempts=updated_attempts,
+            attempt=updated_attempts,
             issues=updated_issues,
             llm_usage=updated_llm_usage,
         )
