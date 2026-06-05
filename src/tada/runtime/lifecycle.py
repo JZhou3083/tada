@@ -10,13 +10,13 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
 from tada.observability.otel.jsonl_exporter import OpenInferenceJSONLSpanExporter
-from tada.runtime.context import TadaRunContext
+from tada.runtime.context import RunContext
 
 
 class RunStateStore:
     """Persist run lifecycle metadata to disk."""
 
-    def __init__(self, context: TadaRunContext) -> None:
+    def __init__(self, context: RunContext) -> None:
         self._context = context
 
     # ------------------------
@@ -89,17 +89,17 @@ class RunStateStore:
             return {}
 
 
-class AppRuntime:
+class TadaRuntime:
     """
-    Runtime container for a single CLI invocation.
+    Runtime container for a single TaDA CLI invocation.
 
-    Owns lifecycle-managed infrastructure such as OpenTelemetry,
-    file-backed exporters, and run-level services.
+    Owns lifecycle-managed infrastructure such as OpenTelemetry, file-backed exporters,
+    and run-level services.
 
     Use as a context manager to ensure proper setup and teardown.
     """
 
-    def __init__(self, *, context: TadaRunContext) -> None:
+    def __init__(self, *, context: RunContext) -> None:
         self.context = context
         self.run_state = RunStateStore(context)
 
@@ -149,7 +149,7 @@ class AppRuntime:
         self.run_state.mark_started()
         return self
 
-    def __exit__(self, exc_type, exc, tb) -> None:
+    def __exit__(self, exc_type, exc, tb) -> bool:
         try:
             if exc:
                 self.run_state.mark_failed(exc)
@@ -157,6 +157,8 @@ class AppRuntime:
                 self.run_state.mark_completed()
         finally:
             self.shutdown()
+
+        return False  # Returning False makes it explicit that errors are not suppressed
 
     def shutdown(self) -> None:
         """

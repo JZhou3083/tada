@@ -1,23 +1,33 @@
-import logging
-from importlib import resources
-
+import structlog
+from langgraph.runtime import Runtime
 from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 
 from tada.domain.sections import WorkbookSection
-from tada.graph.config import AI_NOTICE
-from tada.graph.events import SectionState
-from tada.graph.helpers import StepKind, emit_graph_status
-from tada.graph.workbook_documenter.state import OutputState, OverallState
-from tada.llm.client import get_vertexai_gateway
+from tada.graph.ids import GraphId
+from tada.graph.schemas import LLMCallRecord
+from tada.graph.status import (
+    IssueSeverity,
+    SectionState,
+    StatusIssue,
+)
+from tada.graph.status_stream import StatusEmitRequest, emit_graph_status
+from tada.graph.workbook_documenter.context import WorkbookDocumenterContext
+from tada.graph.workbook_documenter.document_markdown import AI_GENERATED_NOTICE_MD
+from tada.graph.workbook_documenter.ids import WorkbookNodeId
+from tada.graph.workbook_documenter.state import (
+    WorkbookDocumenterOutput,
+    WorkbookDocumenterState,
+    require_docs_by_section,
+)
 from tada.llm.configs import build_base_generation_config
 from tada.observability.otel.observe import observe
+from tada.prompts import load_prompt
 
-logger = logging.getLogger(__name__)
+logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
+_GRAPH_NAME = GraphId.WORKBOOK_DOCUMENTER.value
 
-# Section order is mirrored from doc-agent repo config.yaml
-# TODO: investigate whether we actually need to pass the summariser all sections
-SECTION_ORDER = [
+_SECTION_ORDER_FOR_SUMMARY_PROMPT = [
     WorkbookSection.DATASOURCES,
     WorkbookSection.CALCULATIONS,
     WorkbookSection.DASHBOARDS,
@@ -29,57 +39,188 @@ SECTION_ORDER = [
 
 
 @observe(
-    "langgraph.nodes.summarize_all_sections_documentation",
+    f"graph.node.{WorkbookNodeId.SUMMARIZE_ALL_SECTION_DOCS.value}",
     attributes={
         SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.CHAIN.value,
     },
 )
-def summarize_all_sections_documentation(state: OverallState) -> OutputState:
-    docs_by_section = state["docs_by_section"]
+def summarize_all_sections_documentation(
+    state: WorkbookDocumenterState, runtime: Runtime[WorkbookDocumenterContext]
+) -> WorkbookDocumenterOutput:
+    node_name = WorkbookNodeId.SUMMARIZE_ALL_SECTION_DOCS.value
+    attempt = 1
+
+    docs_by_section = require_docs_by_section(state)
+    include_summary = state["include_summary"]
+
+    log = logger.bind(graph_name=_GRAPH_NAME, node_name=node_name, attempt=attempt)
+
+    log.info(
+        "graph.node.started",
+        section_doc_count=len(docs_by_section),
+        summary_enabled=include_summary,
+    )
+
+    # TODO: investigate whether we actually need to pass the summariser all sections
     ordered_section_docs = [
-        docs_by_section[s] for s in SECTION_ORDER if s in docs_by_section
+        docs_by_section[s]
+        for s in _SECTION_ORDER_FOR_SUMMARY_PROMPT
+        if s in docs_by_section
     ]
-    compiled_doc = "\\pagebreak\n\n".join(ordered_section_docs)
 
-    logger.debug(
-        "Compiled %d section docs into one document chars=%d",
-        len(docs_by_section),
-        len(compiled_doc),
-    )
+    # Append any sections without explicit order to the end & log as a warning
+    unordered_sections = [
+        s for s in docs_by_section if s not in _SECTION_ORDER_FOR_SUMMARY_PROMPT
+    ]
+    ordered_section_docs.extend(docs_by_section[s] for s in unordered_sections)
+    if unordered_sections:
+        log.warning(
+            "graph.summary.unordered_sections_detected",
+            sections=[s.value for s in unordered_sections],
+        )
 
-    final_doc_parts = ordered_section_docs
-
-    if state["run_summary_step"]:
+    # Skip the summary step if specified in the run config
+    if not state["include_summary"]:
         emit_graph_status(
-            name="summary",
-            kind=StepKind.SUMMARY,
-            state=SectionState.GENERATING,
+            StatusEmitRequest(
+                graph_name=_GRAPH_NAME,
+                section_name="summary",
+                state=SectionState.SKIPPED,
+                attempt=1,
+            )
+        )
+        log.info(
+            "graph.node.skipped",
+            skipped_step="summary_generation",
+            skip_reason="summary_step_disabled",
+            section_doc_count=len(docs_by_section),
         )
 
-        summariser_prompt = (
-            resources.files("tada") / "prompts" / "summariser.md"
-        ).read_text(encoding="utf-8")
+        llm_calls_update = []
+        final_doc_parts = ordered_section_docs
 
-        client_wrapper = get_vertexai_gateway()
-
-        contents = client_wrapper.contents_from_text_parts(
-            [summariser_prompt, compiled_doc]
+    # Skip the summary step if no documentation was generated to summarize e.g. alll
+    # specified sections were skipped due to being empty.
+    elif not ordered_section_docs:
+        emit_graph_status(
+            StatusEmitRequest(
+                graph_name=_GRAPH_NAME,
+                section_name="summary",
+                state=SectionState.SKIPPED,
+                attempt=attempt,
+                issues=(
+                    StatusIssue(
+                        "Summary skipped because no section documentation was generated.",
+                        severity=IssueSeverity.INFO,
+                        code="empty-document",
+                        source="graph",
+                    ),
+                ),
+            )
+        )
+        log.info(
+            "graph.node.skipped",
+            skipped_step="summary_generation",
+            skip_reason="empty_section_docs",
+            section_doc_count=len(docs_by_section),
         )
 
-        _, documentation_summary = client_wrapper.generate_text(
-            model="gemini-3-flash-preview",
-            contents=contents,
-            config=build_base_generation_config(),
+        llm_calls_update = []
+        final_doc_parts = [
+            "\n\n_No documentation was generated because all selected sections were empty or skipped._"
+        ]
+
+    else:
+        emit_graph_status(
+            StatusEmitRequest(
+                graph_name=_GRAPH_NAME,
+                section_name="summary",
+                state=SectionState.GENERATING,
+                attempt=attempt,
+            )
         )
 
-        final_doc_parts = [documentation_summary] + ordered_section_docs
+        summariser_prompt = load_prompt("summariser.md")
 
-    emit_graph_status(
-        name="summary",
-        kind=StepKind.SUMMARY,
-        state=SectionState.DONE,
+        model_name = runtime.context.workbook_settings.summary_model
+        compiled_parts = "\n---\n".join(ordered_section_docs)
+
+        try:
+            response = runtime.context.gateway.generate_text(
+                model=model_name,
+                contents=[summariser_prompt, compiled_parts],
+                config=build_base_generation_config(),
+            )
+        except Exception as exc:
+            log.error(
+                "graph.node.failed",
+                failure_stage="llm_summary_generation",
+                model_name=model_name,
+                exception_type=type(exc).__name__,
+                exception_message=str(exc),
+                section_doc_count=len(docs_by_section),
+                ordered_section_doc_count=len(ordered_section_docs),
+                compiled_doc_chars=len(compiled_parts),
+                summariser_prompt_chars=len(summariser_prompt),
+                exc_info=True,
+            )
+
+            emit_graph_status(
+                StatusEmitRequest(
+                    graph_name=_GRAPH_NAME,
+                    section_name="summary",
+                    state=SectionState.FAILED,
+                    attempt=attempt,
+                    issues=(
+                        StatusIssue(
+                            message=str(exc),
+                            severity=IssueSeverity.ERROR,
+                            code=type(exc).__name__,
+                            source="llm_gateway",
+                        ),
+                    ),
+                )
+            )
+            raise
+
+        log.info(
+            "graph.summary.generated",
+            model_name=response.metadata.model_name,
+            elapsed_seconds=response.metadata.elapsed_seconds,
+            input_tokens=response.metadata.input_tokens,
+            output_tokens=response.metadata.output_tokens,
+            total_tokens=response.metadata.total_tokens,
+        )
+
+        # Update live display with token usage and cost info
+        emit_graph_status(
+            StatusEmitRequest(
+                graph_name=_GRAPH_NAME,
+                section_name="summary",
+                state=SectionState.DONE,
+                llm_response_metadata=response.metadata,
+            )
+        )
+
+        final_doc_parts = [response.content] + ordered_section_docs
+        llm_calls_update = [
+            LLMCallRecord(
+                graph_name=_GRAPH_NAME,
+                node_name="summarize_all_sections_documentation",
+                metadata=response.metadata,
+            )
+        ]
+
+    final_doc = "\n---\n".join(
+        [p.rstrip() for p in [AI_GENERATED_NOTICE_MD] + final_doc_parts]
     )
 
-    return {
-        "final_doc": "\n\n".join([p.rstrip() for p in [AI_NOTICE] + final_doc_parts])
-    }
+    log.info(
+        "graph.node.completed",
+        section_doc_count=len(docs_by_section),
+        ordered_section_doc_count=len(ordered_section_docs),
+        summary_enabled=include_summary,
+        final_doc_chars=len(final_doc),
+    )
+
+    return {"final_doc": final_doc, "llm_calls": llm_calls_update}

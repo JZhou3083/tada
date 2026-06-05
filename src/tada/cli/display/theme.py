@@ -1,4 +1,4 @@
-from tada.graph.events import IssueSeverity, SectionState
+from tada.graph.status import IssueSeverity, SectionState
 
 SECTION_STATE_STYLE = {
     SectionState.PENDING: "grey50",

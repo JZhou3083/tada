@@ -1,27 +1,33 @@
-import logging
+from typing import TypeAlias
 
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
-from tada.graph.section_documenter.graph import build_section_documenter_subgraph
+from tada.graph.section_documenter.graph import build_section_documenter_graph
+from tada.graph.workbook_documenter.context import WorkbookDocumenterContext
 from tada.graph.workbook_documenter.ids import WorkbookNodeId
 from tada.graph.workbook_documenter.nodes import (
     summarize_all_sections_documentation,
 )
 from tada.graph.workbook_documenter.routing import route_plan_to_documenters
 from tada.graph.workbook_documenter.state import (
-    InputState,
-    OutputState,
-    OverallState,
+    WorkbookDocumenterInput,
+    WorkbookDocumenterOutput,
+    WorkbookDocumenterState,
 )
 
-logger = logging.getLogger(__name__)
+WorkbookDocumenterGraph: TypeAlias = CompiledStateGraph[
+    WorkbookDocumenterState,
+    WorkbookDocumenterContext,
+    WorkbookDocumenterInput,
+    WorkbookDocumenterOutput,
+]
 
 
-def build_documentation_workflow(
+def build_workbook_documenter_graph(
     checkpointer: BaseCheckpointSaver | None = None,
-) -> CompiledStateGraph:
+) -> WorkbookDocumenterGraph:
     """Construct and compile the LangGraph workflow for workbook documentation.
 
     This function creates the workflow definition from scratch and returns a
@@ -36,24 +42,31 @@ def build_documentation_workflow(
             as input.
     """
     builder = StateGraph(
-        OverallState, input_schema=InputState, output_schema=OutputState
+        WorkbookDocumenterState,
+        context_schema=WorkbookDocumenterContext,
+        input_schema=WorkbookDocumenterInput,
+        output_schema=WorkbookDocumenterOutput,
     )
 
     builder.add_node(
-        WorkbookNodeId.DOCUMENT_SECTION, build_section_documenter_subgraph()
+        WorkbookNodeId.DOCUMENT_SECTION.value, build_section_documenter_graph()
     )
     builder.add_node(
-        WorkbookNodeId.SUMMARIZE_ALL_SECTION_DOCS, summarize_all_sections_documentation
+        WorkbookNodeId.SUMMARIZE_ALL_SECTION_DOCS.value,
+        summarize_all_sections_documentation,
     )
 
     builder.add_conditional_edges(
-        START, route_plan_to_documenters, [WorkbookNodeId.DOCUMENT_SECTION]
+        START,
+        route_plan_to_documenters,
+        [WorkbookNodeId.DOCUMENT_SECTION.value],
     )
     builder.add_edge(
-        WorkbookNodeId.DOCUMENT_SECTION, WorkbookNodeId.SUMMARIZE_ALL_SECTION_DOCS
+        WorkbookNodeId.DOCUMENT_SECTION.value,
+        WorkbookNodeId.SUMMARIZE_ALL_SECTION_DOCS.value,
     )
-    builder.add_edge(WorkbookNodeId.SUMMARIZE_ALL_SECTION_DOCS, END)
+    builder.add_edge(WorkbookNodeId.SUMMARIZE_ALL_SECTION_DOCS.value, END)
 
     workflow = builder.compile(checkpointer=checkpointer)
-    logger.debug("Workflow compiled:\n%s", workflow.get_graph().draw_ascii())
+
     return workflow

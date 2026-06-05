@@ -7,45 +7,47 @@ from rich.live import Live
 from rich.progress import (
     BarColumn,
     Progress,
-    SpinnerColumn,
     TextColumn,
     TimeElapsedColumn,
 )
 from rich.rule import Rule
-from rich.spinner import Spinner
 from rich.table import Table
 from rich.text import Text
 
 from tada.application.ports import StatusSink
 from tada.cli.display.theme import ISSUE_SEVERITY_STYLE, SECTION_STATE_STYLE
-from tada.graph.events import (
-    SECTION_COMPLETE_STATES,
+from tada.graph.status import (
     GraphStatusEvent,
     GraphStatusStore,
     IssueSeverity,
+    LLMUsage,
+    SectionState,
     Status,
     StatusIssue,
 )
 
-SECTIONS_TITLE = "Sections"
-SECTIONS_RUNNING_TEXT = "Documenting sections..."
-ISSUES_TITLE = "Issues"
-SUMMARY_TITLE = "Summary"
-SUMMARY_RUNNING_TEXT = "Generating summary..."
-SUMMARY_DONE_TEXT = "Summary generated"
+_PROGRESS_SECTION_TITLE = "Documentation Progress"
+_PROGRESS_RUNNING_TEXT = "Documenting workbook..."
+_ISSUES_SECTION_TITLE = "Issues"
+
+_SECTION_COMPLETE_STATES = {
+    SectionState.DONE,
+    SectionState.FAILED,
+    SectionState.REACHED_RETRY_LIMIT,
+    SectionState.SKIPPED,
+}
 
 
 class DocumentationProgressDisplay:
     def __init__(self, total_sections: int) -> None:
         self.section_progress = Progress(
-            SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),
             BarColumn(),
             TextColumn("{task.completed}/{task.total} sections"),
             TimeElapsedColumn(),
         )
         self.section_task_id = self.section_progress.add_task(
-            SECTIONS_RUNNING_TEXT,
+            _PROGRESS_RUNNING_TEXT,
             total=total_sections,
         )
 
@@ -53,7 +55,7 @@ class DocumentationProgressDisplay:
         self._sync_progress(store)
 
         items = [
-            Rule(SECTIONS_TITLE, style="bold blue"),
+            Rule(_PROGRESS_SECTION_TITLE, style="bold blue"),
             self._build_sections_table(store),
             Text(""),
             self.section_progress,
@@ -64,21 +66,18 @@ class DocumentationProgressDisplay:
             items.extend(
                 [
                     Text(""),
-                    Rule(ISSUES_TITLE, style="bold yellow"),
+                    Rule(_ISSUES_SECTION_TITLE, style="bold yellow"),
                     issues_table,
                 ]
             )
 
-        if store.summary:
-            items.extend(
-                [
-                    Text(""),
-                    Rule(SUMMARY_TITLE, style="bold green"),
-                    self._build_summary_status(store.summary),
-                ]
-            )
-
         return Group(*items)
+
+    def _format_token_count(self, usage: LLMUsage) -> str:
+        return f"{usage.total_tokens:,}" if usage.total_tokens > 0 else "-"
+
+    def _format_total_cost_usd(self, usage: LLMUsage) -> str:
+        return f"${usage.total_cost_usd:.4f}" if usage.total_cost_usd > 0 else "-"
 
     def _build_sections_table(self, store: GraphStatusStore) -> Table:
         tbl = Table(
@@ -91,18 +90,27 @@ class DocumentationProgressDisplay:
         tbl.add_column("Status", no_wrap=True, width=24)
         tbl.add_column("Attempts", no_wrap=True, width=8)
         tbl.add_column("Issues", no_wrap=True, width=12)
+        tbl.add_column("Token Count", no_wrap=True, width=12)
+        tbl.add_column("Total Cost (USD)", no_wrap=True, width=12)
 
         for sec_name, sec_status in store.sections.items():
             color = SECTION_STATE_STYLE.get(sec_status.state, "white")
+            section_status_element = Text(
+                sec_status.state.name.replace("_", " ").title(),
+                style=color,
+                no_wrap=True,
+            )
+
+            token_count_element = self._format_token_count(sec_status.llm_usage)
+            total_cost_element = self._format_total_cost_usd(sec_status.llm_usage)
+
             tbl.add_row(
                 sec_name,
-                Text(
-                    sec_status.state.name.replace("_", " ").title(),
-                    style=color,
-                    no_wrap=True,
-                ),
-                str(sec_status.attempts) if sec_status.attempts > 0 else "-",
+                section_status_element,
+                str(sec_status.attempt) if sec_status.attempt > 0 else "-",
                 self._format_issue_count(sec_status),
+                token_count_element,
+                total_cost_element,
             )
 
         return tbl
@@ -137,23 +145,6 @@ class DocumentationProgressDisplay:
 
         return table
 
-    def _build_summary_status(self, summary_status: Status) -> Table:
-        summary_grid = Table.grid(padding=(0, 1))
-        summary_grid.add_column()
-
-        if summary_status.state in SECTION_COMPLETE_STATES:
-            summary_grid.add_row(Text(SUMMARY_DONE_TEXT, style="green"))
-        else:
-            summary_grid.add_row(
-                Spinner(
-                    "dots",
-                    text=SUMMARY_RUNNING_TEXT,
-                    style="cyan",
-                )
-            )
-
-        return summary_grid
-
     def _collect_issue_rows(
         self,
         store: GraphStatusStore,
@@ -166,17 +157,11 @@ class DocumentationProgressDisplay:
         }
 
         for section_name, section_status in store.sections.items():
-            # Only want to surface error details for completed sections
-            if section_status.state not in SECTION_COMPLETE_STATES:
-                continue
-
             for issue in section_status.issues:
-                rows.append((section_name, issue))
-
-        # Only want to surface error details for summary if completed
-        if store.summary and store.summary.state in SECTION_COMPLETE_STATES:
-            for issue in store.summary.issues:
-                rows.append(("summary", issue))
+                # Only display INFO e.g. skipped empty section & blocking errors to
+                # reduce non-blocking warning noise
+                if issue.severity != IssueSeverity.WARNING:
+                    rows.append((section_name, issue))
 
         return sorted(
             rows,
@@ -221,7 +206,7 @@ class DocumentationProgressDisplay:
         completed_sections = sum(
             1
             for status in store.sections.values()
-            if status.state in SECTION_COMPLETE_STATES
+            if status.state in _SECTION_COMPLETE_STATES
         )
 
         self.section_progress.update(

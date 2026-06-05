@@ -6,7 +6,7 @@ from rich.panel import Panel
 
 from tada.cli.display.console import print_typer_error
 from tada.runtime.context import RUNS_DIR
-from tada.settings import settings
+from tada.settings import get_settings
 from tada.trace_viewer._optional import OptionalDependencyError
 from tada.trace_viewer.phoenix_launcher import (
     PhoenixLaunchError,
@@ -27,8 +27,10 @@ app = typer.Typer()
 @app.callback(invoke_without_command=True)
 def view_traces() -> None:
     """Launch the local Arize Phoenix trace viewer."""
+    app_settings = get_settings()
+
     try:
-        trace_files = discover_trace_files(settings.state_dir / RUNS_DIR)
+        trace_files = discover_trace_files(app_settings.state_dir / RUNS_DIR)
         result = load_traces(trace_files)
 
         with launch_phoenix(result.traces) as phoenix:

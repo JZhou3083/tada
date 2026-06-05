@@ -11,9 +11,9 @@ from tada.cli.menu import prompt_for_command
 from tada.cli.options import DebugOpt
 from tada.cli.state import TadaCliOptions, TadaCliState
 from tada.observability.logging import configure_logging
-from tada.runtime.context import TadaRunContext
-from tada.runtime.lifecycle import AppRuntime
-from tada.settings import settings
+from tada.runtime.context import RunContext
+from tada.runtime.lifecycle import TadaRuntime
+from tada.settings import get_settings
 
 # Silence this specific auth-warning which Google SDK prints directly to console
 warnings.filterwarnings(
@@ -28,7 +28,7 @@ tracer = trace.get_tracer(__name__)
 
 def handle_entrypoint(
     ctx: typer.Context,
-    run_context: TadaRunContext,
+    run_context: RunContext,
     debug: bool,
 ) -> None:
     """Handle shared CLI setup and route empty invocations to the interactive menu.
@@ -82,11 +82,11 @@ def handle_entrypoint(
         prompt_for_command(ctx, ALL_COMMANDS)
 
 
-def create_entrypoint_callback(run_context: TadaRunContext):
+def create_entrypoint_callback(run_context: RunContext):
     """Create the root Typer callback bound to the current run context.
 
     Typer callbacks can only receive CLI-compatible parameters directly. This
-    factory closes over the current ``TadaRunContext`` so the callback can pass it
+    factory closes over the current ``RunContext`` so the callback can pass it
     into ``handle_entrypoint`` without exposing it as a CLI argument.
 
     Args:
@@ -115,7 +115,7 @@ def create_entrypoint_callback(run_context: TadaRunContext):
     return entrypoint
 
 
-def create_tada_app(run_context: TadaRunContext) -> typer.Typer:
+def create_tada_app(run_context: RunContext) -> typer.Typer:
     """Create and configure the TaDA Typer CLI application.
 
     This function constructs a fresh ``typer.Typer`` instance, registers all available
@@ -154,11 +154,13 @@ def main():
     builds the CLI application, executes it inside the TaDA runtime lifecycle,
     and records whether the run completed or failed.
     """
-    run_context = TadaRunContext.create(state_dir=settings.state_dir)
+    app_settings = get_settings()
+
+    run_context = RunContext.create(state_dir=app_settings.state_dir)
 
     app = create_tada_app(run_context=run_context)
 
-    with AppRuntime(context=run_context):
+    with TadaRuntime(context=run_context):
         with tracer.start_as_current_span("cli.run") as root_span:
             root_span.set_attribute(
                 SpanAttributes.OPENINFERENCE_SPAN_KIND,

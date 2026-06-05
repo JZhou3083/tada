@@ -3,134 +3,173 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Callable
 
-from tada.observability.cost.pricing import get_model_pricing, load_pricing_config
-from tada.observability.cost.schemas import ModelPricing
-from tada.observability.cost.types import CostComponent, CostResult, Usage
+import structlog
 
-TokenCounter = Callable[[Usage], int]
+from tada.observability.cost.errors import (
+    CostError,
+    PricingNotFoundError,
+)
+from tada.observability.cost.pricing import load_pricing_config
+from tada.observability.cost.schemas import ModelPricing, PricingConfig
+from tada.observability.cost.types import (
+    CostComponent,
+    CostFailure,
+    CostResult,
+    CostSuccess,
+    LLMTokenUsage,
+)
+
+logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
+
+TokenCounter = Callable[[LLMTokenUsage], int]
 RateGetter = Callable[[ModelPricing], Decimal | None]
 
 COST_COMPONENTS: tuple[tuple[str, TokenCounter, RateGetter], ...] = (
     (
         "cached_input",
-        lambda usage: get_token_count(usage, "cached_content_token_count"),
+        lambda usage: usage.billable_cached_input_tokens,
         lambda pricing: (
             pricing.cached_input_cost_per_1m or pricing.input_cost_per_1m
         ),  # if cached input cost is not provided, fall back to regular input cost
     ),
     (
         "input",
-        lambda usage: max(
-            get_token_count(usage, "prompt_token_count")
-            - get_token_count(usage, "cached_content_token_count"),
-            0,
-        ),
+        lambda usage: usage.billable_input_tokens,
         lambda pricing: pricing.input_cost_per_1m,
     ),
     (
         "thoughts",
-        lambda usage: get_token_count(usage, "thoughts_token_count"),
+        lambda usage: usage.billable_thoughts_tokens,
         lambda pricing: pricing.thoughts_cost_per_1m,
     ),
     (
         "output",
-        lambda usage: get_token_count(usage, "candidates_token_count"),
+        lambda usage: usage.billable_output_tokens,
         lambda pricing: pricing.output_cost_per_1m,
     ),
 )
 
 
-def get_token_count(usage: Usage, key: str) -> int:
-    """Return a non-negative token count from a usage payload."""
-    value = usage.get(key, 0)
-
-    if value is None:
-        return 0
-
-    # Since bool is a subclass of int specifically catch edge-case value: bool
-    if isinstance(value, bool) or not isinstance(value, int):
-        raise TypeError(f"{key} must be an int, got {type(value).__name__}")
-
-    if value < 0:
-        raise ValueError(f"{key} must be non-negative")
-
-    return value
-
-
-def calculate_component_cost(
+def _calculate_component_cost(
     tokens: int,
     rate_per_1m: Decimal | None,
 ) -> Decimal:
     """Calculate the USD cost for a token component using a per-1M token rate."""
+
     if not tokens or rate_per_1m is None:
         return Decimal("0")
 
     return Decimal(tokens) * rate_per_1m / Decimal("1000000")
 
 
-def calculate_cost(model_name: str, usage: Usage) -> CostResult:
+def unsafe_calculate_cost(
+    model_name: str,
+    token_usage: LLMTokenUsage,
+    *,
+    pricing_config: PricingConfig | None = None,
+) -> CostSuccess:
     """
-    Calculate the estimated USD cost for a model usage record.
-
-    Pricing is resolved by exact model name first, then by prefix match.
+    Estimate the USD cost of an LLM call from token usage.
 
     Args:
-        model_name: Model name reported by the provider.
-        usage: Token usage metrics for the request.
-
-    Expected usage keys:
-        prompt_token_count: Total prompt/input tokens.
-        cached_content_token_count: Prompt tokens served from cache.
-        thoughts_token_count: Internal reasoning/thinking tokens, if reported.
-        candidates_token_count: Output/completion tokens.
+        model_name: Provider-reported model name.
+        token_usage: Token usage for the request.
+        pricing_config: Optional pricing configuration to override the library default.
 
     Returns:
-        A dictionary containing the model name, per-component cost breakdown,
-        and total estimated cost in USD.
-
-        If no pricing is found, the dictionary includes an error message and
-        a zero total cost.
-
-    Notes:
-        - Costs are returned as floats rounded to 6 decimal places.
-        - Missing usage values are treated as zero.
-        - Input cost excludes cached input tokens.
-        - Components with missing pricing rates are costed as zero.
+        A `CostSuccess` containing the model name, a breakdown of costs by component,
+        and the total estimated cost in USD.
     """
-    pricing_config = load_pricing_config()
-    model_pricing = get_model_pricing(model_name, pricing_config.pricing)
+    logger.debug(
+        "cost.calculation.started",
+        model_name=model_name,
+    )
 
-    if model_pricing is None:
-        return {
-            "model": model_name,
-            "error": f"No pricing for {model_name}",
-            "total_cost_usd": 0.0,
-        }
+    if pricing_config is None:
+        pricing_config = load_pricing_config()
 
-    # Guard against invalid token usage figures - cached input cannot exceed full input
-    prompt_tokens = get_token_count(usage, "prompt_token_count")
-    cached_tokens = get_token_count(usage, "cached_content_token_count")
+    if model_name not in pricing_config.pricing:
+        raise PricingNotFoundError(f"No pricing found for model: {model_name!r}")
 
-    if cached_tokens > prompt_tokens:
-        raise ValueError("cached_content_token_count cannot exceed prompt_token_count")
+    model_pricing = pricing_config.pricing[model_name]
 
-    breakdown: dict[str, CostComponent] = {}
-    total_cost = Decimal("0")
-
+    breakdown: list[CostComponent] = []
     for component_name, token_counter, rate_getter in COST_COMPONENTS:
-        tokens = token_counter(usage)
+        tokens = token_counter(token_usage)
         rate = rate_getter(model_pricing)
-        cost = calculate_component_cost(tokens, rate)
+        cost_usd = _calculate_component_cost(tokens, rate)
 
-        breakdown[component_name] = {
-            "tokens": tokens,
-            "cost": float(round(cost, 6)),
-        }
+        breakdown.append(
+            CostComponent(name=component_name, tokens=tokens, cost_usd=cost_usd)
+        )
 
-        total_cost += cost
+    total_cost_usd = sum((c.cost_usd for c in breakdown), start=Decimal(0))
 
-    return {
-        "model": model_name,
-        "breakdown": breakdown,
-        "total_cost_usd": float(round(total_cost, 6)),
-    }
+    logger.info(
+        "cost.calculation.completed",
+        model_name=model_name,
+        total_cost_usd=str(
+            total_cost_usd  # Convert Decimal to string to avoid JSON serialization issues
+        ),
+        component_count=len(breakdown),
+    )
+
+    return CostSuccess(
+        model_name=model_name,
+        breakdown=tuple(breakdown),
+        total_cost_usd=total_cost_usd,
+    )
+
+
+def safe_calculate_cost(
+    model_name: str,
+    usage: LLMTokenUsage,
+    *,
+    pricing_config: PricingConfig | None = None,
+) -> CostResult:
+    """
+    Estimate the USD cost of an LLM call from token usage.
+
+    Unlike `unsafe_calculate_cost`, this function handles recoverable failure cases
+    gracefully, such as missing pricing data, without raising runtime errors.
+
+    Args:
+        model_name: Provider-reported model name.
+        usage: Token usage for the request.
+        pricing_config: Optional pricing configuration to override the library default.
+
+    Returns:
+        A `CostResult`, which is either:
+        - `CostSuccess`: Contains the model name, a breakdown of costs by component,
+          and the total estimated cost in USD.
+        - `CostFailure`: Contains details about why the cost calculation could not be completed.
+    """
+    try:
+        return unsafe_calculate_cost(model_name, usage, pricing_config=pricing_config)
+
+    except CostError as exc:
+        logger.warning(
+            "cost.error.handled",
+            model_name=model_name,
+            error_type=exc.error_type,
+            error_message=str(exc),
+            exc_info=True,
+        )
+
+        return CostFailure(
+            model_name=model_name,
+            error_type=exc.error_type,
+            error_message=str(exc),
+        )
+    except Exception as exc:
+        # Intentionally broad - cost calculation must never crash the calling process
+        logger.exception(
+            "cost.error.unexpected",
+            model_name=model_name,
+        )
+
+        return CostFailure(
+            model_name=model_name,
+            error_type="calculation_error",  # Any unexpected errors are given a generic type
+            error_message=str(exc),
+        )

@@ -1,13 +1,19 @@
-import logging
 from typing import Literal
 
-from tada.graph.config import MAX_SECTION_ATTEMPTS
+import structlog
+from langgraph.runtime import Runtime
+
+from tada.graph.ids import GraphId
+from tada.graph.section_documenter.context import SectionDocumenterContext
 from tada.graph.section_documenter.state import (
     SectionDocumenterState,
     get_latest_eval_result,
+    require_documentation_attempt,
 )
 
-logger = logging.getLogger(__name__)
+logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
+
+_GRAPH_NAME = GraphId.SECTION_DOCUMENTER.value
 
 
 def route_after_precheck(state: SectionDocumenterState) -> Literal["skip", "generate"]:
@@ -15,36 +21,51 @@ def route_after_precheck(state: SectionDocumenterState) -> Literal["skip", "gene
 
 
 def route_evaluation_results(
-    state: SectionDocumenterState,
+    state: SectionDocumenterState, runtime: Runtime[SectionDocumenterContext]
 ) -> Literal["emit", "emit_with_issues", "retry"]:
+    edge_name = "route_evaluation_results"
+    section_name = state["section"].value
+    attempt = require_documentation_attempt(state)
+
+    log = logger.bind(
+        graph_name=_GRAPH_NAME,
+        edge_name=edge_name,
+        section_name=section_name,
+        attempt=attempt,
+    )
+
     latest_eval = get_latest_eval_result(state)
     if latest_eval is None:
         raise ValueError("No evaluation to route")
 
+    blocking_issue_count = len(latest_eval.blocking_issues)
+    non_blocking_issue_count = len(latest_eval.non_blocking_issues)
+
     if latest_eval.passed:
-        logger.debug(
-            "Emitting documentation for %s attempt=%d non_blocking_issues=%d",
-            state["section"].value,
-            state["generation_attempts"],
-            len(latest_eval.non_blocking_issues),
+        log.debug(
+            "graph.edge.traversed",
+            next_node="emit",
+            non_blocking_issue_count=non_blocking_issue_count,
         )
         return "emit"
 
-    elif state["generation_attempts"] > MAX_SECTION_ATTEMPTS:
+    elif (
+        require_documentation_attempt(state)
+        > runtime.context.section_settings.max_documentation_retries
+    ):
         logger.debug(
-            "Hit maximum attempts for %s attempt=%d blocking_issues=%d non_blocking_issues=%d",
-            state["section"].value,
-            state["generation_attempts"],
-            len(latest_eval.blocking_issues),
-            len(latest_eval.non_blocking_issues),
+            "graph.edge.traversed",
+            max_documentation_retries=runtime.context.section_settings.max_documentation_retries,
+            next_node="emit_with_issues",
+            blocking_issue_count=blocking_issue_count,
+            non_blocking_issue_count=non_blocking_issue_count,
         )
         return "emit_with_issues"
 
     logger.debug(
-        "Retrying documentation for %s attempt=%d blocking_issues=%d non_blocking_issues=%d",
-        state["section"].value,
-        state["generation_attempts"],
-        len(latest_eval.blocking_issues),
-        len(latest_eval.non_blocking_issues),
+        "graph.edge.traversed",
+        next_node="retry",
+        blocking_issue_count=blocking_issue_count,
+        non_blocking_issue_count=non_blocking_issue_count,
     )
     return "retry"

@@ -1,35 +1,61 @@
+from functools import lru_cache
 from pathlib import Path
 
 from platformdirs import user_state_dir
-from pydantic import Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from tada.graph.section_documenter.settings import SectionDocumenterSettings
+from tada.graph.workbook_documenter.settings import WorkbookDocumenterSettings
+
+
+class GraphSettings(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    section_documenter: SectionDocumenterSettings = Field(
+        default_factory=SectionDocumenterSettings
+    )
+    workbook_documenter: WorkbookDocumenterSettings = Field(
+        default_factory=WorkbookDocumenterSettings
+    )
 
 
 class TadaSettings(BaseSettings):
     """
     Application settings for TaDA.
 
-    Settings are loaded from environment variables and an optional `.env` file.
-    Unknown settings are ignored.
-
-    `state_dir` controls where local runtime state is stored, including traces,
-    checkpoints, run metadata, and other non-user-facing execution artefacts.
+    Settings are automatically loaded from environment variables and an optional `.env` file.
+    All variables are expected to be prefixed with 'TADA_'.
     """
 
     model_config = SettingsConfigDict(
         env_file=".env",
+        env_prefix="TADA_",  # Automatically prefixes all fields
         extra="ignore",
     )
 
     state_dir: Path = Field(
         default=Path(user_state_dir("tada", appauthor=False)),
-        validation_alias="TADA_STATE_DIR",
         description=(
-            "Directory used for local runtime state such as traces, checkpoints "
-            "and run metadata. Can be overridden with TADA_STATE_DIR. Defaults "
-            "to the platform-specific user state directory."
+            "Directory used for local runtime state such as traces, checkpoints and metadata."
         ),
     )
+    client_project: str = Field(
+        default="jlr-dl-cat",
+        description=(
+            "The Google Cloud project ID used to initialize the GenAI SDK client. "
+            "Defaults to 'jlr-dl-cat'."
+        ),
+    )
+    client_location: str = Field(
+        default="global",
+        description=(
+            "The Google Cloud region/location (e.g., 'us-central1') used for the GenAI SDK client. "
+            "Defaults to 'global'."
+        ),
+    )
+
+    graph: GraphSettings = Field(default_factory=GraphSettings)
 
     @field_validator("state_dir")
     @classmethod
@@ -44,4 +70,8 @@ class TadaSettings(BaseSettings):
         return value.expanduser().resolve()
 
 
-settings = TadaSettings()
+@lru_cache(maxsize=1)
+def get_settings() -> TadaSettings:
+    return TadaSettings(
+        **{}  # Empty dict unpacking silences pylance error for fields injected at runtime
+    )

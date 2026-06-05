@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 import typer
 
-from tada.runtime.context import TadaRunContext
+from tada.runtime.context import RunContext
 
 
 @dataclass(frozen=True)
@@ -46,7 +46,7 @@ class TadaCliState:
     objects before entering application logic.
     """
 
-    run_context: TadaRunContext
+    run_context: RunContext
     """Per-run context containing invocation identity and filesystem layout."""
 
     cli_options: TadaCliOptions
