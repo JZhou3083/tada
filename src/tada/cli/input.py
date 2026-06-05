@@ -73,16 +73,14 @@ def ask_for_input_file_path(
     default: str = "",
     suffixes: str | Sequence[str],
 ) -> Path:
-    """Prompt the user to enter a file path interactively.
+    """Prompt the user to enter an input file path interactively.
 
     The prompt provides path autocompletion and validates that the entered path
-    has an allowed suffix. It can be configured to require either an existing
-    file or a new, non-existent file.
+    has an allowed suffix.
 
     Args:
         prompt: The message displayed to the user.
-        must_exist: If ``True``, require the selected path to be an existing
-            file. If ``False``, require the selected path not to exist yet.
+        default: The default file path for the interactive prompt.
         suffixes: A single allowed file extension or a sequence of allowed
             extensions.
 
@@ -110,16 +108,16 @@ def ask_for_output_file_path(
     default: str = "",
     suffixes: str | Sequence[str],
 ) -> Path:
-    """Prompt the user to enter a file path interactively.
+    """Prompt the user to enter an output file path interactively.
 
     The prompt provides path autocompletion and validates that the entered path
-    has an allowed suffix. It can be configured to require either an existing
-    file or a new, non-existent file.
+    has an allowed suffix.
+
+    If the path already exists users are asked to confirm overwrite behaviour.
 
     Args:
         prompt: The message displayed to the user.
-        must_exist: If ``True``, require the selected path to be an existing
-            file. If ``False``, require the selected path not to exist yet.
+        default: The default file path for the interactive prompt.
         suffixes: A single allowed file extension or a sequence of allowed
             extensions.
 
@@ -129,11 +127,23 @@ def ask_for_output_file_path(
     allowed_suffixes = _normalise_suffixes(suffixes)
     dir_only_path_completer = PathCompleter(only_directories=True)
 
-    file_path = questionary.path(
-        prompt,
-        default=default,
-        completer=dir_only_path_completer,
-        validate=_build_file_path_validator(allowed_suffixes, must_exist=False),
-    ).unsafe_ask()
+    while True:
+        selected_path = questionary.path(
+            prompt,
+            default=default,
+            completer=dir_only_path_completer,
+            validate=_build_file_path_validator(allowed_suffixes, must_exist=False),
+        ).unsafe_ask()
 
-    return Path(file_path)
+        path = Path(selected_path)
+
+        if not path.exists():
+            return path
+
+        overwrite = questionary.confirm(
+            f"'{selected_path}' already exists. Do you want to overwrite it?",
+            default=False,
+        ).unsafe_ask()
+
+        if overwrite:
+            return path

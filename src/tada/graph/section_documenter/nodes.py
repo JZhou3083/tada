@@ -81,14 +81,14 @@ def prepare_section(state: SectionDocumenterInput) -> dict[str, Any]:
             skip_reason="empty_payload",
         )
 
-        return {"skip_section": True}
+        return {"skip_section": True, "documentation_attempt": 0}
 
     log.info(
         "graph.node.completed",
         skip_section=False,
     )
 
-    return {"skip_section": False}
+    return {"skip_section": False, "documentation_attempt": 0}
 
 
 @observe(
@@ -102,7 +102,7 @@ def generate_section_documentation(
 ) -> dict[str, Any]:
     node_name = SectionNodeId.GENERATE_SECTION_DOCS.value
     section_name = state["section"].value
-    attempt = state.get("documentation_attempt", 0) + 1
+    attempt = require_documentation_attempt(state) + 1
 
     log = logger.bind(node_name=node_name, section_name=section_name, attempt=attempt)
 
