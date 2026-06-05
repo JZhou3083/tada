@@ -36,9 +36,9 @@ def run_document_with_progress(
         )
 
     llm_call_costs = [c.metadata.cost for c in result.llm_calls]
-    total_cost = sum(
+    total_cost_usd = sum(
         c.total_cost_usd for c in llm_call_costs if isinstance(c, CostSuccess)
     )
 
     console.print(f"[green]Documentation written to {result.output_path}[/green]")
-    console.print(f"[dim]Total cost: {total_cost}")
+    console.print(f"[dim]Total cost: {f'${total_cost_usd:.4f}'}")
