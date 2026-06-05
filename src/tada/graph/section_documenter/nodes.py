@@ -35,11 +35,9 @@ from tada.llm.schemas import EvalResult
 from tada.observability.otel.observe import observe
 from tada.prompts import load_prompt
 
-_GRAPH_NAME = GraphId.SECTION_DOCUMENTER.value
+logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
-logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__).bind(
-    graph_name=_GRAPH_NAME
-)
+_GRAPH_NAME = GraphId.SECTION_DOCUMENTER.value
 
 
 @observe(
@@ -52,7 +50,9 @@ def prepare_section(state: SectionDocumenterInput) -> dict[str, Any]:
     node_name = SectionNodeId.PREPARE_SECTION.value
     section_name = state["section"].value
 
-    log = logger.bind(node_name=node_name, section_name=section_name)
+    log = logger.bind(
+        graph_name=_GRAPH_NAME, node_name=node_name, section_name=section_name
+    )
 
     log.info(
         "graph.node.started",
@@ -104,7 +104,12 @@ def generate_section_documentation(
     section_name = state["section"].value
     attempt = require_documentation_attempt(state) + 1
 
-    log = logger.bind(node_name=node_name, section_name=section_name, attempt=attempt)
+    log = logger.bind(
+        graph_name=_GRAPH_NAME,
+        node_name=node_name,
+        section_name=section_name,
+        attempt=attempt,
+    )
 
     log.info("graph.node.started")
 
@@ -223,7 +228,12 @@ def evaluate_section_documentation(
     section_name = state["section"].value
     attempt = state.get("documentation_attempt")
 
-    log = logger.bind(node_name=node_name, section_name=section_name, attempt=attempt)
+    log = logger.bind(
+        graph_name=_GRAPH_NAME,
+        node_name=node_name,
+        section_name=section_name,
+        attempt=attempt,
+    )
 
     log.info("graph.node.started")
 
@@ -345,7 +355,12 @@ def _emit_section_documentation_generic(
     section_name = section.value
     attempt = require_documentation_attempt(state)
 
-    log = logger.bind(node_name=node_name, section_name=section_name, attempt=attempt)
+    log = logger.bind(
+        graph_name=_GRAPH_NAME,
+        node_name=node_name,
+        section_name=section_name,
+        attempt=attempt,
+    )
 
     doc = state.get("generated_section_doc")
 

@@ -11,11 +11,9 @@ from tada.graph.workbook_documenter.state import (
 )
 from tada.prompts.loader import load_section_documentation_prompts
 
-_GRAPH_NAME = GraphId.WORKBOOK_DOCUMENTER.value
+logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
-logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__).bind(
-    graph_name=_GRAPH_NAME
-)
+_GRAPH_NAME = GraphId.WORKBOOK_DOCUMENTER.value
 
 
 def _get_section_documenter_payload(section: WorkbookSection, workbook: Workbook):
@@ -49,6 +47,7 @@ def route_plan_to_documenters(state: WorkbookDocumenterInput) -> list[Send]:
 
     logger.debug(
         "graph.edge.traversed",
+        graph_name=_GRAPH_NAME,
         edge_name="route_plan_to_documenters",
         source_node="plan",
         target_node=WorkbookNodeId.DOCUMENT_SECTION.value,

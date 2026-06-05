@@ -11,11 +11,9 @@ from tada.graph.section_documenter.state import (
     require_documentation_attempt,
 )
 
-_GRAPH_NAME = GraphId.SECTION_DOCUMENTER.value
+logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
-logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__).bind(
-    graph_name=_GRAPH_NAME
-)
+_GRAPH_NAME = GraphId.SECTION_DOCUMENTER.value
 
 
 def route_after_precheck(state: SectionDocumenterState) -> Literal["skip", "generate"]:
@@ -29,7 +27,12 @@ def route_evaluation_results(
     section_name = state["section"].value
     attempt = require_documentation_attempt(state)
 
-    log = logger.bind(edge_name=edge_name, section_name=section_name, attempt=attempt)
+    log = logger.bind(
+        graph_name=_GRAPH_NAME,
+        edge_name=edge_name,
+        section_name=section_name,
+        attempt=attempt,
+    )
 
     latest_eval = get_latest_eval_result(state)
     if latest_eval is None:

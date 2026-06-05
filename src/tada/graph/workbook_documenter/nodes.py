@@ -23,12 +23,9 @@ from tada.llm.configs import build_base_generation_config
 from tada.observability.otel.observe import observe
 from tada.prompts import load_prompt
 
+logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
+
 _GRAPH_NAME = GraphId.WORKBOOK_DOCUMENTER.value
-
-logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__).bind(
-    graph_name=_GRAPH_NAME
-)
-
 
 _SECTION_ORDER_FOR_SUMMARY_PROMPT = [
     WorkbookSection.DATASOURCES,
@@ -56,7 +53,7 @@ def summarize_all_sections_documentation(
     docs_by_section = require_docs_by_section(state)
     include_summary = state["include_summary"]
 
-    log = logger.bind(node_name=node_name, attempt=attempt)
+    log = logger.bind(graph_name=_GRAPH_NAME, node_name=node_name, attempt=attempt)
 
     log.info(
         "graph.node.started",
