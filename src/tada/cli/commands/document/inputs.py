@@ -4,7 +4,7 @@ import questionary
 from opentelemetry import trace
 from questionary import Choice
 
-from tada.cli.input import ask_for_file_path
+from tada.cli.input import FilePathMode, ask_for_file_path
 from tada.cli.options import (
     AllSectionsOpt,
     OutputOpt,
@@ -40,7 +40,7 @@ def resolve_workbook_arg(workbook_path: WorkbookOpt | None) -> Path:
         "cli.prompt.workbook_path",
         lambda: ask_for_file_path(
             "Enter the path to your Tableau workbook (.twb or .twbx)",
-            must_exist=True,
+            mode=FilePathMode.EXISTING_FILE,
             suffixes=(".twb", ".twbx"),
         ),
     )
@@ -72,7 +72,7 @@ def resolve_output_arg(output_path: OutputOpt | None, workbook_path: Path) -> Pa
         lambda: ask_for_file_path(
             "Enter the path to save generated documentation to after completion (.md)",
             default=default_output_path,
-            must_exist=False,
+            mode=FilePathMode.OUTPUT_FILE,
             suffixes=(".md",),
         ),
     )
