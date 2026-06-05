@@ -41,14 +41,17 @@ class TadaSettings(BaseSettings):
         ),
     )
     client_project: str = Field(
-        validation_alias="TADA_CLIENT_PROJECT",
+        default="jlr-dl-cat",
         description=(
-            "The Google Cloud project ID used to initialize the GenAI SDK client."
+            "The Google Cloud project ID used to initialize the GenAI SDK client. "
+            "Defaults to 'jlr-dl-cat'."
         ),
     )
     client_location: str = Field(
+        default="global",
         description=(
-            "The Google Cloud region/location (e.g., 'us-central1') used for the GenAI SDK client."
+            "The Google Cloud region/location (e.g., 'us-central1') used for the GenAI SDK client. "
+            "Defaults to 'global'."
         ),
     )
 
