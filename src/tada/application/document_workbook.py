@@ -8,12 +8,13 @@ from tada.application.graph_runner import run_workbook_documenter_graph_with_sta
 from tada.application.ports import NullStatusSink, StatusSink
 from tada.domain.sections import WorkbookSection
 from tada.domain.workbook import Workbook
+from tada.graph import LLMCallRecord, WorkbookDocumenterContext
 from tada.graph.workbook_documenter import (
     build_workbook_documenter_graph,
-    create_workbook_documenter_context,
 )
 from tada.llm.gateway import get_vertexai_gateway
 from tada.observability.otel.observe import observe
+from tada.settings import get_settings
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -39,6 +40,7 @@ class DocumentWorkbookRunConfig:
 class DocumentWorkbookResult:
     output_path: Path
     final_doc: str
+    llm_calls: list[LLMCallRecord]
 
 
 @observe(
@@ -95,7 +97,16 @@ def document_workbook(
         run_id=run_config.run_id,
     )
 
-    gateway = get_vertexai_gateway()
+    app_settings = get_settings()
+    gateway = get_vertexai_gateway(
+        project=app_settings.client_project, location=app_settings.client_location
+    )
+    graph_context = WorkbookDocumenterContext(
+        gateway=gateway,
+        section_settings=app_settings.graph.section_documenter,
+        workbook_settings=app_settings.graph.workbook_documenter,
+    )
+
     final_state = run_workbook_documenter_graph_with_status(
         graph=workflow,
         input={
@@ -103,7 +114,7 @@ def document_workbook(
             "sections_to_document": request.sections,
             "include_summary": request.include_summary,
         },
-        context=create_workbook_documenter_context(gateway=gateway),
+        context=graph_context,
         status_sink=sink,
     )
 
@@ -113,6 +124,7 @@ def document_workbook(
     )
 
     final_doc = final_state["final_doc"]
+    llm_calls = final_state["llm_calls"]
 
     request.output_path.parent.mkdir(parents=True, exist_ok=True)
     request.output_path.write_text(final_doc, encoding="utf-8")
@@ -127,6 +139,5 @@ def document_workbook(
     )
 
     return DocumentWorkbookResult(
-        output_path=request.output_path,
-        final_doc=final_doc,
+        output_path=request.output_path, final_doc=final_doc, llm_calls=llm_calls
     )

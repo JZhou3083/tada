@@ -6,7 +6,6 @@ from tada.graph.section_documenter import (
     SectionDocumenterOutput,
     SectionDocumenterSettings,
     build_section_documenter_graph,
-    create_section_documenter_context,
 )
 from tada.graph.status import (
     GraphStatusEvent,
@@ -25,19 +24,16 @@ from tada.graph.workbook_documenter import (
     WorkbookDocumenterOutput,
     WorkbookDocumenterSettings,
     build_workbook_documenter_graph,
-    create_workbook_documenter_context,
 )
 
 __all__ = [
     "SectionDocumenterContext",
-    "create_section_documenter_context",
     "build_section_documenter_graph",
     "SectionDocumenterGraph",
     "SectionDocumenterInput",
     "SectionDocumenterOutput",
     "SectionDocumenterSettings",
     "WorkbookDocumenterContext",
-    "create_workbook_documenter_context",
     "WorkbookDocumenterGraph",
     "build_workbook_documenter_graph",
     "WorkbookDocumenterSettings",

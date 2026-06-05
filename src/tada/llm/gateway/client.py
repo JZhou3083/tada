@@ -25,7 +25,6 @@ from tada.llm.gateway.telemetry import log_and_trace_usage
 from tada.llm.gateway.types import GatewayResponse, ResponseMetadata
 from tada.observability.cost import safe_calculate_cost
 from tada.observability.cost.types import CostFailure
-from tada.settings import get_settings
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -266,16 +265,14 @@ class VertexAIGateway:
 
 
 @lru_cache(maxsize=1)
-def get_genai_client() -> Client:
-    app_settings = get_settings()
-
+def get_genai_client(project: str, location: str) -> Client:
     return Client(
         vertexai=True,
-        project=app_settings.client_project,
-        location=app_settings.client_location,
+        project=project,
+        location=location,
     )
 
 
 @lru_cache(maxsize=1)
-def get_vertexai_gateway() -> VertexAIGateway:
-    return VertexAIGateway(get_genai_client())
+def get_vertexai_gateway(project: str, location: str) -> VertexAIGateway:
+    return VertexAIGateway(get_genai_client(project, location))

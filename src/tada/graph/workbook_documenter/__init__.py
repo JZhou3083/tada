@@ -1,6 +1,5 @@
 from tada.graph.workbook_documenter.context import (
     WorkbookDocumenterContext,
-    create_workbook_documenter_context,
 )
 from tada.graph.workbook_documenter.graph import (
     WorkbookDocumenterGraph,
@@ -15,11 +14,10 @@ from tada.graph.workbook_documenter.state import (
 )
 
 __all__ = [
-    "WorkbookDocumenterContext",
-    "create_workbook_documenter_context",
     "WorkbookDocumenterGraph",
     "build_workbook_documenter_graph",
-    "WorkbookDocumenterSettings",
     "WorkbookDocumenterInput",
     "WorkbookDocumenterOutput",
+    "WorkbookDocumenterContext",
+    "WorkbookDocumenterSettings",
 ]

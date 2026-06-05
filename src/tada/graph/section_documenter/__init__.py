@@ -1,6 +1,5 @@
 from tada.graph.section_documenter.context import (
     SectionDocumenterContext,
-    create_section_documenter_context,
 )
 from tada.graph.section_documenter.graph import (
     SectionDocumenterGraph,
@@ -15,11 +14,10 @@ from tada.graph.section_documenter.state import (
 )
 
 __all__ = [
-    "SectionDocumenterContext",
-    "create_section_documenter_context",
-    "build_section_documenter_graph",
     "SectionDocumenterGraph",
+    "build_section_documenter_graph",
     "SectionDocumenterInput",
     "SectionDocumenterOutput",
+    "SectionDocumenterContext",
     "SectionDocumenterSettings",
 ]

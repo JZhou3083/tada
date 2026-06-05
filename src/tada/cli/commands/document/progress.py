@@ -11,6 +11,7 @@ from tada.cli.display.documentation_progress import (
     RichDocumentationProgressSink,
 )
 from tada.graph.status import GraphStatusStore
+from tada.observability.cost import CostSuccess
 
 
 def run_document_with_progress(
@@ -34,4 +35,10 @@ def run_document_with_progress(
             status_sink=sink,
         )
 
+    llm_call_costs = [c.metadata.cost for c in result.llm_calls]
+    total_cost = sum(
+        c.total_cost_usd for c in llm_call_costs if isinstance(c, CostSuccess)
+    )
+
     console.print(f"[green]Documentation written to {result.output_path}[/green]")
+    console.print(f"[dim]Total cost: {total_cost}")
