@@ -11,6 +11,7 @@ dependencies = [
   "langgraph-checkpoint-sqlite>=3.1.0",
   "lxml>=6.1.0",
   "lxml-stubs>=0.5.1",
+  "openai>=2.37.0",
   "openinference-instrumentation-google-genai>=1.0.2",
   "opentelemetry-sdk>=1.41.1",
   "platformdirs>=4.9.6",
