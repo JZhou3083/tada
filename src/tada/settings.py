@@ -1,12 +1,20 @@
+from enum import StrEnum
 from functools import lru_cache
 from pathlib import Path
 
 from platformdirs import user_state_dir
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from tada.graph.section_documenter.settings import SectionDocumenterSettings
 from tada.graph.workbook_documenter.settings import WorkbookDocumenterSettings
+
+
+class LLMProvider(StrEnum):
+    GOOGLE_VERTEX = "google_vertex"
+    OPENAI = "openai"
+    ANTHROPIC = "anthropic"
+    DEEPSEEK = "deepseek"
 
 
 class GraphSettings(BaseModel):
@@ -53,6 +61,27 @@ class TadaSettings(BaseSettings):
             "The Google Cloud region/location (e.g., 'us-central1') used for the GenAI SDK client. "
             "Defaults to 'global'."
         ),
+    )
+
+    llm_provider: LLMProvider = Field(
+        default=LLMProvider.OPENAI,
+        description="Which LLM backend to use for all graph generation calls.",
+    )
+    openai_api_key: SecretStr | None = Field(
+        default=None,
+        description="API key used when `llm_provider` is 'openai'.",
+    )
+    anthropic_api_key: SecretStr | None = Field(
+        default=None,
+        description="API key used when `llm_provider` is 'anthropic'.",
+    )
+    deepseek_api_key: SecretStr | None = Field(
+        default=None,
+        description="API key used when `llm_provider` is 'deepseek'.",
+    )
+    deepseek_base_url: str = Field(
+        default="https://api.deepseek.com",
+        description="Base URL for the DeepSeek OpenAI-compatible API.",
     )
 
     graph: GraphSettings = Field(default_factory=GraphSettings)

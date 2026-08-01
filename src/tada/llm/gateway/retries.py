@@ -1,10 +1,17 @@
+from typing import Callable, TypeVar
+
 import structlog
-from google.genai.errors import APIError
 from tenacity import (
     RetryCallState,
+    retry,
+    retry_if_exception,
+    stop_after_attempt,
+    wait_exponential_jitter,
 )
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
+
+F = TypeVar("F", bound=Callable)
 
 
 # ------------------------
@@ -22,7 +29,7 @@ def log_retry(retry_state: RetryCallState) -> None:
         else None
     )
     logger.warning(
-        "genai.request.retrying",
+        "llm.request.retrying",
         attempt=retry_state.attempt_number,
         wait_seconds=wait,
         total_idle_seconds=round(retry_state.idle_for, 2),
@@ -31,14 +38,17 @@ def log_retry(retry_state: RetryCallState) -> None:
     )
 
 
-def is_retryable_genai_error(exc: BaseException) -> bool:
-    """Return whether a GenAI exception should be retried.
+def with_retry(is_retryable: Callable[[BaseException], bool]) -> Callable[[F], F]:
+    """Build a tenacity retry decorator using the shared rate-limit backoff policy.
 
-    Retries are limited to Google GenAI API errors with status code `429`, which
-    indicates `RESOURCE_EXHAUSTED` / rate limiting.
+    Every provider raises a different exception type for rate limiting, so each
+    provider adapter defines its own `is_retryable_x_error` predicate and passes
+    it here rather than sharing one exception check.
     """
-    if not isinstance(exc, APIError):
-        return False
-
-    code = getattr(exc, "code", None)
-    return code == 429
+    return retry(
+        retry=retry_if_exception(is_retryable),
+        wait=wait_exponential_jitter(initial=1, max=10, jitter=0.25),
+        stop=stop_after_attempt(4),
+        before_sleep=log_retry,
+        reraise=True,
+    )

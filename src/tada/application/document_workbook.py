@@ -12,7 +12,7 @@ from tada.graph import LLMCallRecord, WorkbookDocumenterContext
 from tada.graph.workbook_documenter import (
     build_workbook_documenter_graph,
 )
-from tada.llm.gateway import get_vertexai_gateway
+from tada.llm.gateway import get_gateway
 from tada.observability.otel.observe import observe
 from tada.settings import get_settings
 
@@ -98,9 +98,7 @@ def document_workbook(
     )
 
     app_settings = get_settings()
-    gateway = get_vertexai_gateway(
-        project=app_settings.client_project, location=app_settings.client_location
-    )
+    gateway = get_gateway()
     graph_context = WorkbookDocumenterContext(
         gateway=gateway,
         section_settings=app_settings.graph.section_documenter,

@@ -2,6 +2,12 @@ currency: USD
 unit: per_1m_tokens
 
 # Decimal values are written as strings to avoid precision errors resulting from pyyaml auto-conversion to float
+#
+# Only Gemini models are priced here today. OpenAI/Anthropic/DeepSeek entries are
+# intentionally not included — add them by hand with a verified `source` URL once
+# real pricing is confirmed. Until then, `safe_calculate_cost` degrades gracefully
+# for unpriced models (returns a `CostFailure` instead of raising), so cost
+# tracking just reports "unavailable" for non-Gemini models.
 pricing:
   gemini-2.5-flash-lite:
     input_cost_per_1m: "0.1"

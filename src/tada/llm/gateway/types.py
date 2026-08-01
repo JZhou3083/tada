@@ -21,7 +21,7 @@ class ResponseMetadata:
 
 @dataclass(frozen=True)
 class GatewayResponse(Generic[T]):
-    """Unified return object for the VertexAIGateway."""
+    """Unified return object for every LLM gateway adapter."""
 
     content: T
     metadata: ResponseMetadata
