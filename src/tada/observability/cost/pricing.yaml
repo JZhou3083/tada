@@ -3,11 +3,17 @@ unit: per_1m_tokens
 
 # Decimal values are written as strings to avoid precision errors resulting from pyyaml auto-conversion to float
 #
-# Only Gemini models are priced here today. OpenAI/Anthropic/DeepSeek entries are
-# intentionally not included — add them by hand with a verified `source` URL once
-# real pricing is confirmed. Until then, `safe_calculate_cost` degrades gracefully
-# for unpriced models (returns a `CostFailure` instead of raising), so cost
-# tracking just reports "unavailable" for non-Gemini models.
+# OpenAI/Anthropic entries are intentionally not included yet — add them by hand
+# with a verified `source` URL once real pricing is confirmed. Until then,
+# `safe_calculate_cost` degrades gracefully for unpriced models (returns a
+# `CostFailure` instead of raising), so cost tracking just reports "unavailable"
+# for those models.
+#
+# DeepSeek pricing below is the current flat rate confirmed against the official
+# docs. Note: DeepSeek has announced (but not yet enabled, as of this writing) a
+# peak/off-peak pricing policy that will double these rates during Beijing
+# business hours (09:00-12:00, 14:00-18:00) — this schema has no notion of
+# time-of-day pricing, so cost figures will under-report once that goes live.
 pricing:
   gemini-2.5-flash-lite:
     input_cost_per_1m: "0.1"
@@ -44,3 +50,19 @@ pricing:
     cache_storage_cost_per_1m_tokens_per_hr: "1.0"
     effective_from: "2026-04-01"
     source: "https://ai.google.dev/gemini-api/docs/pricing"
+
+  deepseek-v4-flash:
+    input_cost_per_1m: "0.14"
+    output_cost_per_1m: "0.28"
+    cached_input_cost_per_1m: "0.0028"
+    max_prompt_tokens: 1000000
+    effective_from: "2026-08-01"
+    source: "https://api-docs.deepseek.com/quick_start/pricing/"
+
+  deepseek-v4-pro:
+    input_cost_per_1m: "0.435"
+    output_cost_per_1m: "0.87"
+    cached_input_cost_per_1m: "0.003625"
+    max_prompt_tokens: 1000000
+    effective_from: "2026-08-01"
+    source: "https://api-docs.deepseek.com/quick_start/pricing/"

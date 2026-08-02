@@ -14,7 +14,7 @@ wheels/
 
 # --- Project specific ---
 # Input
-workbooks/
+docs/
 
 # Output
 output/*.md

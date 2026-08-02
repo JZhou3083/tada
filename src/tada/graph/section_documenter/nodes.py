@@ -11,6 +11,7 @@ from tada.graph.section_documenter.context import SectionDocumenterContext
 from tada.graph.section_documenter.document_markdown import (
     prepend_unresolved_blocking_issues_warning_md,
 )
+from tada.graph.section_documenter.eval_verification import verify_blocking_issues
 from tada.graph.section_documenter.ids import SectionNodeId
 from tada.graph.section_documenter.prompts import append_eval_feedback_prompt
 from tada.graph.section_documenter.state import (
@@ -301,7 +302,12 @@ def evaluate_section_documentation(
         )
         raise
 
-    issues = issues_from_eval_result(evaluation_response.content)
+    # Deterministically downgrade critical_omission issues for fields that are
+    # demonstrably absent from the source JSON (rather than relying on the
+    # evaluator's own, inconsistent judgement of "is this really missing").
+    eval_result = verify_blocking_issues(evaluation_response.content, payload_json)
+
+    issues = issues_from_eval_result(eval_result)
 
     # Update graph status with any resulting issues / clear issues if there are none
     emit_graph_status(
@@ -317,9 +323,9 @@ def evaluate_section_documentation(
 
     log.info(
         "graph.node.completed",
-        passed=evaluation_response.content.passed,
+        passed=eval_result.passed,
         issue_count=len(issues),
-        blocking_issue_count=len(evaluation_response.content.blocking_issues),
+        blocking_issue_count=len(eval_result.blocking_issues),
         model_name=evaluation_response.metadata.model_name,
         elapsed_seconds=evaluation_response.metadata.elapsed_seconds,
         input_tokens=evaluation_response.metadata.input_tokens,
@@ -328,7 +334,7 @@ def evaluate_section_documentation(
     )
 
     return {
-        "evaluation_history": [evaluation_response.content],
+        "evaluation_history": [eval_result],
         "llm_calls": [
             LLMCallRecord(
                 graph_name=_GRAPH_NAME,

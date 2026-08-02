@@ -38,7 +38,7 @@ class RunStateStore:
             ended_at=datetime.now(UTC).isoformat(),
         )
 
-    def mark_failed(self, exc: Exception) -> None:
+    def mark_failed(self, exc: BaseException) -> None:
         """Record failure of a run and associated error details."""
         self._write_metadata(
             status="failed",
@@ -151,10 +151,14 @@ class TadaRuntime:
 
     def __exit__(self, exc_type, exc, tb) -> bool:
         try:
-            if exc:
-                self.run_state.mark_failed(exc)
-            else:
+            # `SystemExit(0)`/`SystemExit(None)` is how Typer signals a normal,
+            # successful CLI exit — it's still a truthy exception object, so it
+            # must be checked for explicitly rather than falling into the
+            # generic `elif exc:` failure branch below.
+            if exc is None or (isinstance(exc, SystemExit) and exc.code in (0, None)):
                 self.run_state.mark_completed()
+            else:
+                self.run_state.mark_failed(exc)
         finally:
             self.shutdown()
 

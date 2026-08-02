@@ -75,9 +75,30 @@ class OpenAIGateway:
     via `supports_json_schema=False`.
     """
 
-    def __init__(self, client: OpenAI, *, supports_json_schema: bool = True):
+    def __init__(
+        self,
+        client: OpenAI,
+        *,
+        supports_json_schema: bool = True,
+        disable_thinking: bool = False,
+        structured_reasoning_effort: str | None = None,
+    ):
         self.client = client
         self.supports_json_schema = supports_json_schema
+        # DeepSeek's v4 models default to an extended internal reasoning pass (at
+        # "high" effort) whose tokens count against `max_tokens` alongside the
+        # actual answer. For free-form section-doc generation (large prompt, long
+        # prose output), even `reasoning_effort="low"` was observed in practice to
+        # still occasionally consume the entire `max_tokens` budget on reasoning
+        # alone, leaving an empty `content` — so generation disables thinking
+        # outright via `disable_thinking` rather than merely capping its effort.
+        self.disable_thinking = disable_thinking
+        # Structured calls (e.g. section-doc evaluation) have a small, bounded JSON
+        # output, so there's little risk of reasoning alone exhausting the budget —
+        # and that task genuinely benefits from multi-step reasoning (the eval
+        # prompt asks for step-by-step comparison), so it's capped via
+        # `reasoning_effort` rather than disabled entirely.
+        self.structured_reasoning_effort = structured_reasoning_effort
 
     @with_retry(is_retryable_openai_error)
     def _create_with_retry(self, **kwargs):
@@ -90,6 +111,8 @@ class OpenAIGateway:
         contents: ContentsInput,
         config: GenerationConfig | None,
         response_format: dict | None = None,
+        disable_thinking: bool = False,
+        reasoning_effort: str | None = None,
     ) -> GatewayResponse[str]:
         request_id = str(uuid.uuid4())
         structlog.contextvars.bind_contextvars(request_id=request_id, model_name=model)
@@ -114,6 +137,10 @@ class OpenAIGateway:
             )
             if response_format is not None:
                 create_kwargs["response_format"] = response_format
+            if disable_thinking:
+                create_kwargs["extra_body"] = {"thinking": {"type": "disabled"}}
+            elif reasoning_effort is not None:
+                create_kwargs["reasoning_effort"] = reasoning_effort
 
             response = self._create_with_retry(**create_kwargs)
             elapsed = round(time.perf_counter() - t0, 3)
@@ -195,7 +222,12 @@ class OpenAIGateway:
         Raises:
             ValueError: If the model returns no text.
         """
-        return self._generate(model=model, contents=contents, config=config)
+        return self._generate(
+            model=model,
+            contents=contents,
+            config=config,
+            disable_thinking=self.disable_thinking,
+        )
 
     def generate_structured_response(
         self,
@@ -235,6 +267,7 @@ class OpenAIGateway:
                 contents=contents,
                 config=config,
                 response_format=response_format,
+                reasoning_effort=self.structured_reasoning_effort,
             )
         else:
             schema_instruction = (
@@ -251,6 +284,7 @@ class OpenAIGateway:
                 contents=augmented_contents,
                 config=config,
                 response_format={"type": "json_object"},
+                reasoning_effort=self.structured_reasoning_effort,
             )
 
         try:
@@ -290,5 +324,8 @@ def get_openai_gateway(api_key: str) -> OpenAIGateway:
 @lru_cache(maxsize=1)
 def get_deepseek_gateway(api_key: str, base_url: str) -> OpenAIGateway:
     return OpenAIGateway(
-        OpenAI(api_key=api_key, base_url=base_url), supports_json_schema=False
+        OpenAI(api_key=api_key, base_url=base_url),
+        supports_json_schema=False,
+        disable_thinking=False,
+        structured_reasoning_effort="low",
     )

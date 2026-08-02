@@ -7,12 +7,17 @@ from tada.llm.gateway.providers.openai_compatible import (
     get_deepseek_gateway,
     get_openai_gateway,
 )
-from tada.settings import LLMProvider, get_settings
 
 
 @lru_cache(maxsize=1)
 def get_gateway() -> LLMGateway:
     """Build (and cache) the `LLMGateway` selected by `TADA_LLM_PROVIDER`."""
+    # Imported lazily: tada.settings pulls in tada.graph (for the nested graph
+    # settings), which imports tada.graph.schemas, which imports this package
+    # (tada.llm.gateway) for ResponseMetadata — a module-level import here
+    # would deadlock that cycle during package initialisation.
+    from tada.settings import LLMProvider, get_settings
+
     settings = get_settings()
 
     match settings.llm_provider:

@@ -15,7 +15,7 @@ class GenerationConfig:
     temperature: float = 0.2
     top_p: float = 0.2
     seed: int = 101
-    max_output_tokens: int = 8192
+    max_output_tokens: int = 32768
     labels: dict[str, str] = field(default_factory=dict)
 
 

@@ -32,6 +32,7 @@ You must perform this analysis step-by-step in your reasoning trace:
 4. **Categorization of Missing Items:**
    - If an item is in JSON + Required by Template + Missing in Summary -> **Critical Omission** (Lower the score).
    - If an item is in JSON + NOT in Template + Missing in Summary -> **Benign Omission** (Do not lower score; log for analyst).
+   - Tableau's XML schema varies significantly by version and by data-source/connection type (e.g. logical "Relationships" vs. legacy physical joins, live vs. extract connections, file-based vs. database connections). A template field can be legitimately absent from the JSON for a given workbook without that being a defect. Before flagging something as a Critical Omission, you must be able to point to the *exact literal key name* you searched for and confirm it is genuinely absent from `<source_json>` — do not flag a field as missing just because the Template mentions it in general.
 5. **AI‑Generated Summary Sections Rule:**
    Sections that the Template designates as AI‑generated (e.g., "Dashboard Overview", "Interaction Summary", "Data Sources Summary", "Calculated Fields Summary", "Worksheet Summary") may:
    - add connective text,

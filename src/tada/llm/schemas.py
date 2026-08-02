@@ -31,6 +31,21 @@ class BlockingIssue(BaseModel):
             "Do not explain the issue or suggest a fix."
         )
     )
+    source_json_keys: list[str] = Field(
+        default_factory=list,
+        max_length=5,
+        description=(
+            "ONLY for type='critical_omission': the literal JSON key name(s) you "
+            "expected to find in the source JSON but could not (e.g. 'cardinality', "
+            "'join_type', 'server'). Use the exact spelling as it would appear as a "
+            "quoted key in that JSON, not the template's display label. These are "
+            "used to automatically double-check whether the field truly exists "
+            "anywhere in the source data before this is treated as a real defect — "
+            "Tableau's XML schema varies a lot by version and data-source type, so "
+            "many template fields are legitimately absent for a given workbook. "
+            "Leave empty for 'hallucination' or 'accuracy_error'."
+        ),
+    )
 
 
 class NonBlockingIssue(BaseModel):

@@ -39,6 +39,7 @@ class TadaSettings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
         env_prefix="TADA_",  # Automatically prefixes all fields
+        env_nested_delimiter="__",  # Enables e.g. TADA_GRAPH__SECTION_DOCUMENTER__DOCUMENTATION_MODEL
         extra="ignore",
     )
 
